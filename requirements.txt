@@ -9,6 +9,7 @@ click==8.5.0
 courlan==1.4.0
 cryptography==50.0.2
 dateparser==1.4.3
+ddgs==9.16.0
 distro==1.9.0
 duckduckgo_search==8.1.1
 feedparser==6.0.14
@@ -74,3 +75,7 @@ websockets==16.1.1
 xlsxwriter==3.2.9
 xxhash==4.0.1
 zstandard==0.25.0
+
+llama-index-core>=0.11.0
+llama-index-readers-file>=0.2.0
+streamlit>=1.35.0

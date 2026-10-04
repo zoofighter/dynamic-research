@@ -9,7 +9,7 @@ system:
 # Search Provider Configuration
 search:
   default_provider: "duckduckgo"   # duckduckgo | serper | tavily
-  max_results: 5
+  max_results: 8
   region: "kr-kr"
   timeout_sec: 10
 
@@ -26,28 +26,35 @@ rss:
   max_entries: 50
   timeout_sec: 10
 
-# LLM Configuration
+# LLM Configuration (Default: OpenCode Muse Spark)
 llm:
-  default_provider: "ollama"       # ollama | gemini | openai
+  default_provider: "opencode"       # opencode | gemini | ollama | groq | openai
+  opencode:
+    base_url: "http://127.0.0.1:36629"  # auto-detected if omitted
+    default_model: "opencode/muse-spark-1.3-contributor-free"
+    agent: "build"
+  gemini:
+    default_model: "gemini-3.5-flash"
   ollama:
     base_url: "http://localhost:11434"
     default_model: "qwen3.8:27b"
+
   tiers:
     fast:
-      provider: "ollama"
-      model: "qwen3.8:27b"
+      provider: "opencode"
+      model: "opencode/muse-spark-1.3-contributor-free"
       temperature: 0.1
     standard:
-      provider: "ollama"
-      model: "qwen3.8:27b"
-      temperature: 0.3
+      provider: "opencode"
+      model: "opencode/muse-spark-1.3-contributor-free"
+      temperature: 0.2
     deep:
-      provider: "ollama"
-      model: "qwen3.8:27b"
-      temperature: 0.3
+      provider: "opencode"
+      model: "opencode/muse-spark-1.3-contributor-free"
+      temperature: 0.2
 
 # DLS Research Loop Parameters
 research:
   max_reflection_loops: 2
-  sub_query_count: 2
+  sub_query_count: 3
   confidence_threshold: 0.8

@@ -1,3 +1,4 @@
+import urllib.parse
 from typing import List, Optional
 from pydantic import BaseModel
 import feedparser
@@ -13,19 +14,23 @@ class NewsArticle(BaseModel):
 class NewsRSSProvider:
     """
     Fetches real-time headlines from Google News RSS.
-    (Note: Hankyung direct feed is reserved as a TODO for later.)
     """
     GOOGLE_NEWS_KR = "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko"
 
     def __init__(self, default_limit: int = 30):
         self.default_limit = default_limit
 
+    def fetch_feed(self, query: Optional[str] = None, max_items: Optional[int] = None) -> List[NewsArticle]:
+        """Alias for fetch_headlines supporting max_items parameter."""
+        return self.fetch_headlines(query=query, limit=max_items)
+
     def fetch_headlines(self, query: Optional[str] = None, limit: Optional[int] = None) -> List[NewsArticle]:
         """Fetch real-time news headlines from Google News RSS."""
         target_limit = limit or self.default_limit
 
         if query:
-            url = f"https://news.google.com/rss/search?q={query}&hl=ko&gl=KR&ceid=KR:ko"
+            encoded_query = urllib.parse.quote_plus(query)
+            url = f"https://news.google.com/rss/search?q={encoded_query}&hl=ko&gl=KR&ceid=KR:ko"
         else:
             url = self.GOOGLE_NEWS_KR
 
@@ -33,7 +38,6 @@ class NewsRSSProvider:
         try:
             feed = feedparser.parse(url)
             for entry in feed.entries[:target_limit]:
-                # Extract clean source name if present (e.g., '기사제목 - 언론사')
                 raw_title = entry.get("title", "").strip()
                 source_name = "Google News"
                 if " - " in raw_title:
