@@ -1,7 +1,7 @@
 # 프로젝트 개요 — 자율 리서치 Agent (Dynamic Research)
 
 > **작성일**: 2026-10-03  
-> **프로젝트 경로**: `c_1003_dyanmic_research`
+> **프로젝트 경로**: `c_1003_dynamic_research`
 
 ---
 
@@ -86,7 +86,7 @@ Dynamic Live Search — 검색 + 아웃라인 채우기 (Search/Scraper Agent)
 ## 7. 프로젝트 폴더 구조
 
 ```
-c_1003_dyanmic_research/
+c_1003_dynamic_research/
 ├── docs/
 │   ├── human.md                          ← 사람이 작성한 기획 메모
 │   ├── project_overview_20261003.md      ← 본 문서

@@ -1,0 +1,53 @@
+# Dynamic Research System Configuration
+
+system:
+  project_name: "dynamic-research"
+  version: "1.0.0"
+  temp_dir: "temp"
+  output_dir: "output"
+
+# Search Provider Configuration
+search:
+  default_provider: "duckduckgo"   # duckduckgo | serper | tavily
+  max_results: 5
+  region: "kr-kr"
+  timeout_sec: 10
+
+# Web Scraper Configuration
+scraper:
+  default_provider: "trafilatura" # trafilatura | jina | multi_tier
+  timeout_sec: 15
+  max_length_chars: 6000
+  jina_prefix: "https://r.jina.ai/"
+
+# News RSS Configuration (Topic Discovery)
+rss:
+  google_news_kr: "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko"
+  max_entries: 50
+  timeout_sec: 10
+
+# LLM Configuration
+llm:
+  default_provider: "ollama"       # ollama | gemini | openai
+  ollama:
+    base_url: "http://localhost:11434"
+    default_model: "qwen3.8:27b"
+  tiers:
+    fast:
+      provider: "ollama"
+      model: "qwen3.8:27b"
+      temperature: 0.1
+    standard:
+      provider: "ollama"
+      model: "qwen3.8:27b"
+      temperature: 0.3
+    deep:
+      provider: "ollama"
+      model: "qwen3.8:27b"
+      temperature: 0.3
+
+# DLS Research Loop Parameters
+research:
+  max_reflection_loops: 2
+  sub_query_count: 2
+  confidence_threshold: 0.8

@@ -2,8 +2,8 @@
 
 > **작성일**: 2026-10-04  
 > **문서 버전**: v1.1 (심층 상세화 및 테스트 하네스 구현 코드 포함)  
-> **프로젝트**: `c_1003_dyanmic_research`  
-> **관련 문서**: [Dynamic Live Search 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/dls_design_20261003.md), [DLS vs Agentic RAG 비교](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/dls_vs_agentic_rag_20261004.md), [LangGraph 통합 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/langgraph_design_20261004.md)
+> **프로젝트**: `c_1003_dynamic_research`  
+> **관련 문서**: [Dynamic Live Search 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/dls_design_20261003.md), [DLS vs Agentic RAG 비교](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/dls_vs_agentic_rag_20261004.md), [LangGraph 통합 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/langgraph_design_20261004.md)
 
 ---
 

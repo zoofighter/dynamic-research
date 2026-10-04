@@ -786,7 +786,7 @@ async def run_dls_only(outline_path: str):
 ## 5. 프로젝트 디렉토리 구조
 
 ```
-c_1003_dyanmic_research/
+c_1003_dynamic_research/
 ├── docs/                                    ← 설계 문서
 │   ├── project_overview_20261003.md
 │   ├── requirements_20261003.md

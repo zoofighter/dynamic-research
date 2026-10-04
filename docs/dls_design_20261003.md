@@ -2,7 +2,7 @@
 
 > **작성일**: 2026-10-03  
 > **문서 버전**: v1.0  
-> **상위 문서**: [요건정의서](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/requirements_20261003.md)
+> **상위 문서**: [요건정의서](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/requirements_20261003.md)
 
 ---
 

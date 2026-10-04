@@ -103,7 +103,7 @@ def create_deck():
     meta_box = s1.shapes.add_textbox(Inches(1.2), Inches(6.4), Inches(8), Inches(0.5))
     tf_meta = meta_box.text_frame
     p_meta = tf_meta.paragraphs[0]
-    p_meta.text = "프로젝트: c_1003_dyanmic_research   |   일자: 2026. 10. 04   |   버전: v1.0"
+    p_meta.text = "프로젝트: c_1003_dynamic_research   |   일자: 2026. 10. 04   |   버전: v1.0"
     p_meta.font.size = Pt(12)
     p_meta.font.color.rgb = RGBColor(100, 116, 139)
 
@@ -688,7 +688,7 @@ def create_deck():
             p_k.line_spacing = 1.3
 
     # 저장 경로
-    output_path = "/Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/dynamic_research_presentation_20261004.pptx"
+    output_path = "/Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/dynamic_research_presentation_20261004.pptx"
     prs.save(output_path)
     print(f"Presentation saved to {output_path}")
 

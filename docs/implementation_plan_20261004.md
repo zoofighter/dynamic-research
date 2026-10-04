@@ -2,8 +2,8 @@
 
 > **작성일**: 2026-10-04  
 > **문서 버전**: v1.0  
-> **프로젝트 경로**: `c_1003_dyanmic_research`  
-> **상위 및 관련 문서**: [요건정의서](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/requirements_20261003.md), [DLS 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/dls_design_20261003.md), [LangGraph 통합 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/langgraph_design_20261004.md), [구현 전 사전검토서](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/pre_implementation_review_20261004.md), [LlamaIndex 벤치마킹 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/llamaindex_integration_and_benchmarking_20261004.md)
+> **프로젝트 경로**: `c_1003_dynamic_research`  
+> **상위 및 관련 문서**: [요건정의서](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/requirements_20261003.md), [DLS 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/dls_design_20261003.md), [LangGraph 통합 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/langgraph_design_20261004.md), [구현 전 사전검토서](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/pre_implementation_review_20261004.md), [LlamaIndex 벤치마킹 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/llamaindex_integration_and_benchmarking_20261004.md)
 
 ---
 
@@ -15,7 +15,7 @@
 ### 1.2 핵심 개발 원칙
 1. **2-Graph 모듈 분리**: 사람의 검토가 필수적인 `TopicOutlineGraph`(Graph 1)와 완전 자율 실행되는 `DLSResearchGraph`(Graph 2)를 완전히 분리하여 독립 테스트 및 재사용성을 보장한다.
 2. **Provider Factory 패턴**: 검색 엔진(DDG/Serper/Tavily), 파서(Jina/Trafilatura), LLM(Gemini/Ollama)을 추상 인터페이스로 감싸 코드 수정 없이 `settings.yaml`에서 런타임 전환 가능하도록 한다.
-3. **견고한 3단계 Fallback & 회복 탄력성**: 한경 403 차단 시 Google News RSS 대체, Jina 차단 시 Trafilatura 대체, Serper 실패 시 DDG 대체 등 장애 없는 운영 보장.
+3. **견고한 Fallback & 회복 탄력성**: 실시간 뉴스 수집은 100% 무료이고 차단 없는 **Google News RSS를 단독 메인 소스로 사용**하며(한경 직접 연동은 추후 TODO로 보류), Jina 차단 시 Trafilatura 대체, Serper 실패 시 DDG 대체 등 장애 없는 운영 보장.
 4. **마크다운 5대 저장 규격 준수**: 출처 투명성(`rag_metadata` 및 인라인 각주 `[^1]`), 사실 vs 해석 3분할, 반증 조건, HITL 슬롯, 옵시디언 위키링크 연계.
 
 ---
@@ -23,7 +23,7 @@
 ## 2. 전체 디렉토리 및 모듈 구성 계획
 
 ```
-c_1003_dyanmic_research/
+c_1003_dynamic_research/
 ├── config/
 │   ├── settings.yaml                 # 검색엔진, LLM 티어, 크롤러, 경로 등 전체 시스템 설정
 │   └── .env.example                  # API Key 템플릿 (GEMINI, SERPER, TAVILY 등)
@@ -40,7 +40,7 @@ c_1003_dyanmic_research/
 │   │   ├── __init__.py
 │   │   ├── search.py                 # SearchProvider (DuckDuckGo, Serper, Tavily)
 │   │   ├── scraper.py                # ScraperProvider (Jina Reader, Trafilatura, Fallback)
-│   │   ├── rss.py                    # NewsRSSProvider (한경 RSS, Google News RSS)
+│   │   ├── rss.py                    # NewsRSSProvider (Google News RSS 전용, 한경 직접 연동은 TODO)
 │   │   └── llm.py                    # LLMProvider (Fast Tier, Standard Tier 라우팅)
 │   ├── engines/                      # 데이터 가공 엔진 (A/B 벤치마킹용)
 │   │   ├── __init__.py
@@ -88,7 +88,7 @@ gantt
     Self-Reflection 루프 & 합성 구현   :p2_2, after p2_1, 1d
     단일 섹션 자율 탐색 검증           :p2_3, after p2_2, 1d
     section Phase 3: Topic & Outline (Graph 1)
-    한경/구글 RSS 수집 및 클러스터링  :p3_1, after p2_3, 1d
+    Google News RSS 수집 및 클러스터링 :p3_1, after p2_3, 1d
     Outline 생성 및 Human Interrupt   :p3_2, after p3_1, 1d
     approved_outline.json 연동 검증   :p3_3, after p3_2, 1d
     section Phase 4: 전체 시스템 통합
@@ -122,8 +122,9 @@ gantt
    - `TrafilaturaScraperProvider`: 로컬 HTML 파서 기반 2차 Fallback.
    - `MultiTierScraper`: Jina 실패 시 Trafilatura, 둘 다 실패 시 검색 스니펫으로 3단계 자동 복구.
 4. **실시간 뉴스 RSS 프로바이더 (`src/providers/rss.py`)**:
-   - `NewsRSSProvider` 구현: Google News RSS의 `site:hankyung.com` 필터를 통해 한경 최신 기사 50~100건 1초 수집.
-   - 일반 경제/IT 카테고리 RSS 피드 파싱 지원.
+   - `NewsRSSProvider` 구현: **Google News RSS 전용** (`https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko` 및 키워드/토픽 검색 피드)으로 실시간 헤드라인 50~100건 초고속 수집.
+   - 웹서버 차단(403) 리스크가 없고 100% 무료인 Google News RSS로 프로덕션 안정성 확보.
+   - *(TODO)* 한경(hankyung.com) 공식 RSS 직접 파싱 연동은 향후 확장 과제로 보류.
 5. **LLM 라우터 프로바이더 (`src/providers/llm.py`)**:
    - Fast Tier (`gemini-2.5-flash` or `gemini-2.0-flash`, `temp=0.1`): 쿼리 분해, 요약, 자기반성 전용.
    - Standard/Deep Tier (`gemini-2.5-pro` or 고지능 모델, `temp=0.3`): 최종 섹션 합성 및 보고서 조립 전용.
@@ -165,7 +166,7 @@ gantt
 1. **Topic & Outline State 설계 (`src/graphs/states.py`)**:
    - `TopicOutlineState`: `raw_news`, `candidate_topics`, `selected_topic`, `outline_draft`, `approved_outline`.
 2. **노드 구현 (`src/nodes/topic_nodes.py`)**:
-   - `node_fetch_news`: 한경/구글뉴스 RSS 피드 100건 수집.
+   - `node_fetch_news`: Google News RSS 피드 50~100건 수집 (주요 헤드라인 및 경제/IT 토픽).
    - `node_cluster_and_propose`: LLM을 통해 기사를 클러스터링하고 "오늘 쓸 만한 주제 5개" 제안.
    - `node_human_topic_selection`: LangGraph `interrupt()`를 통해 사용자 주제 선택 대기.
    - `node_generate_outline`: 선택된 주제에 대해 4~5개 심층 질문과 예상 결론이 포함된 아웃라인 구조화.
@@ -215,8 +216,8 @@ Graph 1과 Graph 2를 하나의 매끄러운 CLI 파이프라인으로 연결하
 
 | 마일스톤 | 완료 기준 | 산출물 | 일정 |
 | :--- | :--- | :--- | :---: |
-| **M1: Provider 기초 완료** | DuckDuckGo, Serper, 한경 RSS, Gemini 연동 및 단위 테스트 100% 통과 | `src/providers/*`, `tests/test_providers.py` | D+3일 |
+| **M1: Provider 기초 완료** | DuckDuckGo, Serper, Google News RSS, Gemini 연동 및 단위 테스트 100% 통과 | `src/providers/*`, `tests/test_providers.py` | D+3일 |
 | **M2: DLS 리서치 코어 완료** | 주어진 아웃라인 1개 섹션에 대해 웹 검색 → 크롤링 → 3분할 리포트 자동 작성 성공 | `src/graphs/dls_research_graph.py` | D+6일 |
-| **M3: 토픽/아웃라인 HITL 완료** | 한경 뉴스 100건 수집 → 주제 제안 → 터미널 인터럽트 선택 → 아웃라인 JSON 생성 | `src/graphs/topic_outline_graph.py` | D+8일 |
+| **M3: 토픽/아웃라인 HITL 완료** | Google News 100건 수집 → 주제 제안 → 터미널 인터럽트 선택 → 아웃라인 JSON 생성 | `src/graphs/topic_outline_graph.py` | D+8일 |
 | **M4: E2E 파이프라인 완성** | 주제 선정부터 최종 5대 규격 마크다운 보고서 생성까지 원스톱 구동 확인 | `src/main.py`, 최종 보고서 `.md` | D+10일 |
 | **M5: 벤치마크 및 고도화** | Baseline vs LlamaIndex A/B 테스트 성적표 생성 및 리포트 품질 검증 | `scripts/benchmark_runner.py`, `output/benchmark_report.md` | D+12일 |

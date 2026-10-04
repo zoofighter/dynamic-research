@@ -3,7 +3,7 @@
 
 > **문서 버전**: v1.0  
 > **생성 일시**: 2026-10-04  
-> **파워포인트 파일**: [dynamic_research_presentation_20261004.pptx](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/dynamic_research_presentation_20261004.pptx) (16:9 와이드스크린, 8개 슬라이드)
+> **파워포인트 파일**: [dynamic_research_presentation_20261004.pptx](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/dynamic_research_presentation_20261004.pptx) (16:9 와이드스크린, 8개 슬라이드)
 
 ---
 
@@ -13,7 +13,7 @@
 - **Main Title**: **자율 리서치 Agent 시스템**
 - **Sub Title**: Dynamic Live Search & Human-in-the-Loop 아키텍처
 - **Description**: 사전 벡터 DB(RAG)의 시점 한계를 극복하는 100% 실시간 웹 심층 탐색과 인간-AI 협업(HITL) 기반의 고신뢰성 심층 보고서 자율 생성 플랫폼
-- **Metadata**: 프로젝트: `c_1003_dyanmic_research` | 기준일: 2026. 10. 04 | 버전: v1.0
+- **Metadata**: 프로젝트: `c_1003_dynamic_research` | 기준일: 2026. 10. 04 | 버전: v1.0
 
 ---
 

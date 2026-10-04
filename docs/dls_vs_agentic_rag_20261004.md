@@ -2,8 +2,8 @@
 
 > **작성일**: 2026-10-04  
 > **문서 버전**: v1.0  
-> **프로젝트**: `c_1003_dyanmic_research`  
-> **관련 문서**: [Dynamic Live Search 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/dls_design_20261003.md), [DLS 가이드](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/%E1%84%8E%E1%85%A1%E1%86%B7%E1%84%8C%E1%85%A9/dynamic_live_search_guide.md)
+> **프로젝트**: `c_1003_dynamic_research`  
+> **관련 문서**: [Dynamic Live Search 설계서](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/dls_design_20261003.md), [DLS 가이드](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/%E1%84%8E%E1%85%A1%E1%86%B7%E1%84%8C%E1%85%A9/dynamic_live_search_guide.md)
 
 ---
 
@@ -118,7 +118,7 @@ flowchart TD
 
 ---
 
-## 6. 결론: 본 프로젝트(`c_1003_dyanmic_research`)의 정체성
+## 6. 결론: 본 프로젝트(`c_1003_dynamic_research`)의 정체성
 
 본 프로젝트는 사내 문서 검색(RAG)이 아니라, **"사전 DB 없이 100% 실시간 웹을 탐색하여 최신 팩트를 검증하고 고품질 마크다운 리포트를 자율 생성하는 Dynamic Live Search 플랫폼"**입니다. 
 
