@@ -17,3 +17,5 @@ AI 개입 방식: 최근 24~72시간 뉴스 헤드라인 50개를 수집 → LLM
 - LlamaIndex 도입 효과 및 비도입 시와의 성능 측정 비교 방안 -> [llamaindex_integration_and_benchmarking_20261004.md](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/llamaindex_integration_and_benchmarking_20261004.md) 에 A/B 테스트 지표 및 프레임워크 설계 완료
 
 - GitHub 저장소 생성 및 연동 완료 -> [zoofighter/dynamic-research](https://github.com/zoofighter/dynamic-research) (Public 리포지토리 생성, 원격 origin 연결 및 최초 커밋 푸시 완료)
+
+- 구현계획서 및 테스트계획서 작성 -> [implementation_plan_20261004.md](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/implementation_plan_20261004.md) 및 [test_plan_20261004.md](file:///Users/boon/Dropbox/03_code/c_1003_dyanmic_research/docs/test_plan_20261004.md) 에 상세 계획 수립 완료
