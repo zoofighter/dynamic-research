@@ -65,11 +65,18 @@ def run_dls(
     # Step 1: 뉴스 중심 검색 쿼리 분해 (Query Decomposition)
     # ----------------------------------------------------
     print(f"\n🔍 [Step 1] {engine_label}이 최신 뉴스 검색 쿼리를 분해하는 중...")
+    outline_context = ""
+    if outline_data and outline_data.get("sections"):
+        outline_context = "\n[사전 승인된 목차 및 질문]\n"
+        for s in outline_data["sections"]:
+            outline_context += f"• {s.get('title')}: {', '.join(s.get('target_questions', []))}\n"
+
     decomp_prompt = f"""당신은 심층 리서치 에이전트입니다.
-다음 주제에 대해 국내외 최신 언론사 보도, 공시, IR 뉴스를 빠짐없이 수집하기 위한 핵심 검색 키워드 3개를 한 줄에 하나씩 출력하세요.
+다음 주제와 세부 목차에 대해 국내외 최신 언론사 보도, 공시, IR 뉴스를 빠짐없이 수집하기 위한 핵심 검색 키워드 3~4개를 한 줄에 하나씩 출력하세요.
 중요: 따옴표("), 괄호(), OR, AND 같은 특수 기호를 절대 쓰지 말고 오직 자연어 키워드만 공백으로 구분하여 출력하세요.
 
 주제: {topic}
+{outline_context}
 """
     decomp_res = llm.invoke(decomp_prompt)
     raw_decomp = decomp_res.content if isinstance(decomp_res.content, str) else str(decomp_res.content)
@@ -141,14 +148,39 @@ def run_dls(
     for doc in scraped_documents:
         context_str += f"\n\n[출처 {doc['index']}: {doc['title']}]\nURL: {doc['url']}\n기사 본문:\n{doc['content']}\n"
 
-    outline_guidance = ""
     if outline_data and outline_data.get("sections"):
-        outline_guidance = "\n[사전 승인된 목차 및 질문 (테마: " + str(outline_data.get("theme", "")) + ")]\n"
-        for s in outline_data["sections"]:
-            outline_guidance += "• " + str(s.get("title", "")) + ": " + ", ".join(s.get("target_questions", [])) + "\n"
-        outline_guidance += "위 승인된 목차 질문들에 대한 해답을 Facts와 Analysis에 반드시 반영하세요.\n"
-    synthesis_prompt = f"""당신은 반도체 산업 전문 수석 애널리스트입니다.
-아래 수집된 최신 뉴스 및 보도 원문 {len(scraped_documents)}건을 교차 검증하여 전체가 완결된 마크다운 리포트를 작성하세요.
+        theme = outline_data.get("theme", "심층 분석")
+        sec_directives = []
+        for i, s in enumerate(outline_data["sections"], 1):
+            q_str = "\n".join([f"       * {q}" for q in s.get("target_questions", [])])
+            sec_directives.append(
+                f"""   - ## {i}. {s.get('title')}
+     - 다루어야 할 핵심 질문:
+{q_str}
+     - 작성 요령: 위 수집된 원문 데이터에 근거하여 핵심 팩트(수치, 일정, 사양)와 심층 분석을 2~3개 문단 및 불릿으로 밀도 있게 서술하고 모든 문장에 출처 번호 [^번호]를 명시하세요."""
+            )
+        sections_instruction = "\n".join(sec_directives)
+        unverified_sec_num = len(outline_data["sections"]) + 1
+
+        structure_instruction = f"""3. [사전 승인된 아웃라인(테마: {theme}) 기반 섹션 구성 - 반드시 아래 대제목(##) 순서와 제목 그대로 작성할 것]
+{sections_instruction}
+   - ## {unverified_sec_num}. 미확인 주장 및 향후 검증 과제 (Unverified & Open Questions)
+     - 기사 간 상충/과장 내용 및 향후 공식 확인 필요 사항을 마크다운 비교 표로 정리
+   - > [!NOTE] 휴먼 피드백 & 직접 집필란
+     - 전문가 검토를 위한 빈 Callout 영역"""
+    else:
+        structure_instruction = """3. 반드시 다음 표준 4개 섹션으로 구성하세요:
+   - ## 1. 확인된 사실 (Facts)
+     - 4~5개 핵심 팩트 불릿 (각 문장 출처 각주 포함)
+   - ## 2. 에이전트 해석 (Analysis)
+     - 핵심 영향 및 산업 밸류체인/경쟁 구도 심층 분석 (2~3개 문단)
+   - ## 3. 미확인 주장 및 향후 검증 과제 (Unverified & Open Questions)
+     - 기사 간 상충/과장 내용 및 향후 공식 IR 확인 필요 사항을 마크다운 표로 정리
+   - > [!NOTE] 휴먼 피드백 & 직접 집필란
+     - 전문가 검토를 위한 빈 Callout 영역"""
+
+    synthesis_prompt = f"""당신은 '{topic}' 분야 전문 수석 리서치 애널리스트입니다.
+아래 수집된 최신 뉴스 및 보도 원문 {len(scraped_documents)}건을 교차 검증하여 전체가 완결된 심층 마크다운 리포트를 작성하세요.
 
 주제: {topic}
 
@@ -157,19 +189,11 @@ def run_dls(
 
 [작성 지침 - 반드시 준수]
 1. 완결성 및 분량 균형:
-   - 특정 섹션에 과도하게 치중하지 말고, 각 섹션을 핵심 위주로 명료하고 밀도 있게 작성하여 4개 섹션 전체와 맨 끝 각주 URL 매핑까지 반드시 끝까지 완결하세요.
+   - 특정 섹션에 과도하게 치중하지 말고, 각 섹션을 핵심 위주로 명료하고 밀도 있게 작성하여 지정된 모든 섹션과 맨 끝 각주 URL 매핑까지 반드시 끝까지 완결하세요.
 2. 정량적 수치와 출처 매핑:
-   - 기사에 언급된 날짜, 용량(예: 36GB), 수율, 설비 투자액, 목표 주가, 양산 시점 등의 숫자를 구체적으로 인용하세요.
+   - 기사에 언급된 날짜, 금액, 사양, 성능 수치 등의 숫자를 구체적으로 인용하세요.
    - 모든 문장 끝에 반드시 해당 팩트의 출처 번호 각주 [^1], [^2]를 연결하세요.
-3. 반드시 다음 4개 섹션으로 구성하세요:
-   - ## 1. 확인된 사실 (Facts)
-     - 4~5개 핵심 팩트 불릿 (각 문장 출처 각주 포함)
-   - ## 2. 에이전트 해석 (Analysis)
-     - 엔비디아 공급망(블랙웰/루빈) 영향 및 3사(SK하이닉스·삼성전자·마이크론) 경쟁 구도 분석 (2~3개 문단)
-   - ## 3. 미확인 주장 및 향후 검증 과제 (Unverified & Open Questions)
-     - 기사 간 상충/과장 내용 및 향후 공식 IR 확인 필요 사항을 마크다운 표로 정리
-   - > [!NOTE] 휴먼 피드백 & 직접 집필란
-     - 전문가 검토를 위한 빈 Callout 영역
+{structure_instruction}
 4. 맨 아래에 반드시 수집된 출처 URL 매핑을 완결하세요:
    [^1]: URL
    [^2]: URL
@@ -200,24 +224,31 @@ search_queries:
     output_dir = ROOT_DIR / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
     if active_provider == "gemini":
-        report_filename = "gemini_dls_report.md"
+        default_filename = "gemini_dls_report.md"
     elif active_provider in ["opencode", "opencode_api", "muse"]:
-        report_filename = "opencode_dls_report.md"
+        default_filename = "opencode_dls_report.md"
     else:
-        report_filename = "local_dls_report.md"
-    report_path = output_dir / report_filename
+        default_filename = "local_dls_report.md"
+    report_path = output_dir / default_filename
 
     with open(report_path, "w", encoding="utf-8") as f:
+        f.write(final_output)
+
+    clean_topic_slug = "".join(c for c in topic if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")[:30]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamped_report_path = output_dir / f"report_{clean_topic_slug}_{timestamp}.md"
+    with open(timestamped_report_path, "w", encoding="utf-8") as f:
         f.write(final_output)
 
     elapsed = time.perf_counter() - start_time
     print("\n" + "=" * 70)
     print(f"🎉 [성공] DLS 리포트 생성 완료! (소요 시간: {elapsed:.2f}초)")
     print(f"📁 수집 출처 수: {len(scraped_documents)}개")
-    print(f"📁 저장 경로: {report_path}")
+    print(f"📁 기본 경로: {report_path}")
+    print(f"📁 아카이브 경로: {timestamped_report_path}")
     print("=" * 70)
 
-    return report_path
+    return str(timestamped_report_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Dynamic Live Search Pipeline")

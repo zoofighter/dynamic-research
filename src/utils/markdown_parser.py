@@ -65,10 +65,12 @@ rag_metadata:
 """
     # 2. Body sections
     body_blocks = []
-    for sec in sections:
-        sec_id = sec.get("section_id", "")
+    for idx, sec in enumerate(sections):
+        sec_id = sec.get("section_id") or f"sec_{idx}"
         sec_title = sec.get("title", "")
         draft = section_drafts.get(sec_id, "").strip()
+        if not draft:
+            draft = section_drafts.get(f"sec_{idx}", "").strip()
         if not draft:
             continue
             

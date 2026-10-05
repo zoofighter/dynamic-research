@@ -12,7 +12,7 @@ from src.graphs.topic_outline_graph import topic_outline_app
 from src.graphs.dls_research_graph import dls_research_app
 from src.utils.config import get_config
 
-def run_pipeline(mode: str = "direct", topic_hint: str = "", auto_approve: bool = False):
+def run_pipeline(mode: str = "direct", topic_hint: str = "", auto_approve: bool = False, outline_path: str = None):
     print("=" * 75)
     print("🤖 [Dynamic Research] 자율 리서치 에이전트 시스템 가동")
     print(f"   • 모드: {'주제 자동 발굴 (Google News RSS)' if mode == 'discover' else '직접 주제 입력'}")
@@ -20,13 +20,28 @@ def run_pipeline(mode: str = "direct", topic_hint: str = "", auto_approve: bool 
     print("=" * 75)
 
     config = get_config()
-    thread_id_g1 = f"thread_g1_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    g1_config = {"configurable": {"thread_id": thread_id_g1}}
+    approved_outline = None
 
-    # ---------------------------------------------------------
-    # Stage 1: TopicOutlineGraph (Graph 1)
-    # ---------------------------------------------------------
-    print("\n📋 [Stage 1] 아웃라인 설계 및 주제 탐색 시작 (Graph 1)...")
+    if outline_path and os.path.exists(outline_path):
+        try:
+            with open(outline_path, "r", encoding="utf-8") as fp:
+                approved_outline = json.load(fp)
+            print(f"\n📑 [사전 승인된 아웃라인 직접 로드] {outline_path}")
+            print(f"   • 주제: {approved_outline.get('topic')}")
+            print(f"   • 테마: {approved_outline.get('theme')}")
+            print(f"   • 섹션 수: {len(approved_outline.get('sections', []))}개")
+            print("   👉 Stage 1 건너뛰고 Stage 2 (DLS 자율 심층 리서치 Graph 2)로 즉시 진입합니다.")
+        except Exception as e:
+            print(f"⚠️ 아웃라인 파일 로드 실패: {e}")
+
+    if not approved_outline:
+        thread_id_g1 = f"thread_g1_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        g1_config = {"configurable": {"thread_id": thread_id_g1}}
+
+        # ---------------------------------------------------------
+        # Stage 1: TopicOutlineGraph (Graph 1)
+        # ---------------------------------------------------------
+        print("\n📋 [Stage 1] 아웃라인 설계 및 주제 탐색 시작 (Graph 1)...")
     initial_state = {
         "user_input": topic_hint or "최신 AI 반도체 동향",
         "mode": mode
@@ -131,6 +146,7 @@ if __name__ == "__main__":
     parser.add_argument("--mode", choices=["discover", "direct"], default="direct", help="Research mode")
     parser.add_argument("--topic", type=str, default="마이크론 12단 HBM3E 엔비디아 퀄 승인 및 양산 일정", help="Research topic or hint")
     parser.add_argument("--auto-approve", action="store_true", help="Auto-approve HITL prompts for testing")
+    parser.add_argument("--outline", type=str, default=None, help="Path to pre-approved outline JSON")
     args = parser.parse_args()
 
-    run_pipeline(mode=args.mode, topic_hint=args.topic, auto_approve=args.auto_approve)
+    run_pipeline(mode=args.mode, topic_hint=args.topic, auto_approve=args.auto_approve, outline_path=args.outline)

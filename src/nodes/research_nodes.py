@@ -27,11 +27,18 @@ def init_run(state: DLSState) -> Dict[str, Any]:
     temp_dir = ROOT_DIR / "temp" / run_id
     temp_dir.mkdir(parents=True, exist_ok=True)
     
-    outline = state.get("outline", [])
+    raw_outline = state.get("outline", [])
+    outline = []
+    for idx, s in enumerate(raw_outline):
+        s_copy = dict(s)
+        if not s_copy.get("section_id"):
+            s_copy["section_id"] = f"sec_{idx}"
+        outline.append(s_copy)
+
     if not outline:
         # Fallback default section if outline is empty
         outline = [{
-            "section_id": "sec_1",
+            "section_id": "sec_0",
             "title": f"{state.get('topic', '리서치')} 개요 및 핵심 현황",
             "target_questions": ["최신 핵심 현황 및 주요 사실은 무엇인가?"],
             "expected_takeaway": "핵심 팩트 요약"
