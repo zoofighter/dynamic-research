@@ -19,3 +19,9 @@ AI 개입 방식: 최근 24~72시간 뉴스 헤드라인 50개를 수집 → LLM
 - GitHub 저장소 생성 및 연동 완료 -> [zoofighter/dynamic-research](https://github.com/zoofighter/dynamic-research) (Public 리포지토리 생성, 원격 origin 연결 및 최초 커밋 푸시 완료)
 
 - 구현계획서 및 테스트계획서 작성 -> [implementation_plan_20261004.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/implementation_plan_20261004.md) 및 [test_plan_20261004.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/test_plan_20261004.md) 에 상세 계획 수립 완료
+
+- 심층리서치를 몇가지 보고서로 만드는 요건정의 -> [multi_report_generation_requirements_20261005.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/multi_report_generation_requirements_20261005.md) 에 4대 전문 보고서 패키지(경영진 1-Pager, 심층 기술보고서, 벤치마크 매트릭스, 리스크 진단서) 자동 생성 요건정의서 작성 완료
+
+- 보고서 유형 다각화 분류 체계 및 확장 프레임워크 -> [report_taxonomies_and_expansion_20261005.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/report_taxonomies_and_expansion_20261005.md) 에 4차원 분류 체계(의사결정 목적별, 시간지평별, 전달매체별, 전문관점별) 및 확장 로드맵 문서화 완료
+
+- 월스트리트 투자은행(IB) 스타일 에쿼티 리서치 보고서 요건정의 -> [wall_street_equity_research_requirements_20261005.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/wall_street_equity_research_requirements_20261005.md) 에 골드만삭스/모건스탠리 스타일 투자의견(Rating), 목표주가, 컨센서스 괴리(Variant Perception), 3개년 재무추정치, Bull/Base/Bear 밸류에이션 매트릭스 요건정의서 작성 완료

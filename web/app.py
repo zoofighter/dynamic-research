@@ -18,6 +18,17 @@ from src.utils.dedup import deduplicate_results
 from src.utils.config import get_config
 from src.engines.baseline_engine import BaselineDataEngine
 from src.engines.llamaindex_engine import LlamaIndexDataEngine
+
+# Hot-reload src.utils.markdown_parser in long-running Streamlit processes
+import importlib
+import src.utils.markdown_parser
+importlib.reload(src.utils.markdown_parser)
+from src.utils.markdown_parser import (
+    parse_report_for_dashboard,
+    sections_to_markdown_outline,
+    markdown_outline_to_sections
+)
+from src.utils.bundle_packager import get_available_bundles, create_report_bundle
 from scripts.run_local_dls import run_dls
 
 st.set_page_config(
@@ -94,11 +105,12 @@ with st.sidebar:
 st.markdown("<div class='main-title'>🔬 DLS Dynamic Deep Research Studio</div>", unsafe_allow_html=True)
 st.markdown("<div class='sub-title'>뉴스 전용 이중 수집기(DuckDuckGo + Google RSS)와 LlamaIndex 기반 자율 리서치 플랫폼</div>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "💡 1. 토픽 발굴 & 목차 생성",
     "🚀 2. DLS 심층 리서치",
-    "📊 3. A/B 엔진 벤치마크",
-    "📑 4. 완성된 리포트 열람실"
+    "📑 3. 완성된 리포트 열람실",
+    "📊 4. A/B 엔진 벤치마크",
+    "💎 5. 스마트 리포트 분석실 (Dashboard & Q&A)"
 ])
 
 # ========================================================
@@ -350,16 +362,129 @@ Outline B: 기술 사양 및 엔지니어링/수율 관점
                             st.markdown(f"**• {s.get('title')}**")
                             for q in s.get("target_questions", []):
                                 st.markdown(f"  - {q}")
-                        if st.button(f"✅ Outline {oid} 최종 승인 및 확정", key=f"btn_approve_{oid}", use_container_width=True):
-                            approved = {
-                                "topic": final_topic,
-                                "theme": theme,
-                                "sections": outline_item.get("sections")
-                            }
-                            os.makedirs("temp", exist_ok=True)
-                            with open("temp/latest_approved_outline.json", "w", encoding="utf-8") as f:
-                                json.dump(approved, f, ensure_ascii=False, indent=2)
-                            st.success(f"Outline {oid} ({theme}) 승인 완료! (temp/latest_approved_outline.json 저장)")
+                        col_app, col_edit = st.columns([1, 1])
+                        with col_app:
+                            if st.button(f"✅ Outline {oid} 바로 승인", key=f"btn_approve_{oid}", use_container_width=True):
+                                approved = {
+                                    "topic": final_topic,
+                                    "theme": theme,
+                                    "sections": outline_item.get("sections")
+                                }
+                                os.makedirs("temp", exist_ok=True)
+                                with open("temp/latest_approved_outline.json", "w", encoding="utf-8") as f:
+                                    json.dump(approved, f, ensure_ascii=False, indent=2)
+                                st.success(f"Outline {oid} ({theme}) 승인 완료! (temp/latest_approved_outline.json 저장)")
+                        with col_edit:
+                            if st.button(f"✏️ Outline {oid} 편집기로 열기", key=f"btn_load_{oid}", use_container_width=True):
+                                st.session_state["editing_outline"] = {
+                                    "topic": final_topic,
+                                    "theme": theme,
+                                    "sections": [dict(s) for s in outline_item.get("sections", [])]
+                                }
+                                st.session_state["outline_editor_open"] = True
+                                st.rerun()
+
+    # 수동 목차 편집기 (Human-in-the-Loop Editor)
+    st.markdown("---")
+    with st.expander("✍️ 나만의 맞춤형 목차 수동 편집기 (Human-in-the-Loop Editor)", expanded=st.session_state.get("outline_editor_open", False)):
+        st.markdown("AI가 제안한 목차를 불러와 수정하거나, 직접 원하는 섹션과 질문을 자유롭게 추가/삭제/편집할 수 있습니다.")
+        
+        if "editing_outline" not in st.session_state:
+            st.session_state["editing_outline"] = {
+                "topic": final_topic,
+                "theme": "사용자 맞춤형 분석 관점",
+                "sections": [
+                    {"section_id": "sec_0", "title": "핵심 시장 동향 및 공급망 현황", "target_questions": ["주요 공급사 및 양산 일정", "고객사 계약 및 퀄테스트 현황"]},
+                    {"section_id": "sec_1", "title": "기술 사양 및 공정 수율 분석", "target_questions": ["공정 노드 및 패키징 기술", "수율 이슈 및 개선 로드맵"]}
+                ]
+            }
+            
+        edit_mode = st.radio(
+            "편집 모드 선택",
+            options=["📋 섹션별 폼 편집 (추천)", "📝 마크다운 텍스트 직접 입력/수정 (자유 메모장)"],
+            horizontal=True,
+            key="outline_edit_mode_radio"
+        )
+        
+        cur_topic = st.text_input("목차 대상 주제", value=st.session_state["editing_outline"].get("topic", final_topic), key="edit_outline_topic")
+        cur_theme = st.text_input("분석 테마/관점 명칭", value=st.session_state["editing_outline"].get("theme", "맞춤형 분석 관점"), key="edit_outline_theme")
+        
+        if edit_mode == "📋 섹션별 폼 편집 (추천)":
+            sections = st.session_state["editing_outline"].get("sections", [])
+            sec_to_remove = None
+            for s_idx, sec in enumerate(sections):
+                with st.container(border=True):
+                    col_t, col_del = st.columns([5, 1])
+                    with col_t:
+                        sec["title"] = st.text_input(f"섹션 {s_idx + 1} 제목", value=sec.get("title", ""), key=f"sec_title_{s_idx}")
+                    with col_del:
+                        st.write("")
+                        st.write("")
+                        if st.button("🗑️ 삭제", key=f"del_sec_{s_idx}"):
+                            sec_to_remove = s_idx
+                            
+                    q_text = "\n".join(sec.get("target_questions", []))
+                    new_q_text = st.text_area(f"섹션 {s_idx + 1} 세부 탐색 질문 (줄바꿈으로 구분)", value=q_text, key=f"sec_q_{s_idx}", height=75)
+                    sec["target_questions"] = [q.strip() for q in new_q_text.splitlines() if q.strip()]
+                    sec["section_id"] = f"sec_{s_idx}"
+                    
+            if sec_to_remove is not None and len(sections) > 1:
+                del sections[sec_to_remove]
+                st.session_state["editing_outline"]["sections"] = sections
+                st.rerun()
+                
+            col_add, col_save = st.columns([1, 2])
+            with col_add:
+                if st.button("➕ 새 섹션 추가", key="btn_add_section", use_container_width=True):
+                    new_idx = len(sections)
+                    sections.append({
+                        "section_id": f"sec_{new_idx}",
+                        "title": f"새 섹션 {new_idx + 1}",
+                        "target_questions": ["상세 팩트 및 현황 확인"]
+                    })
+                    st.session_state["editing_outline"]["sections"] = sections
+                    st.rerun()
+                    
+            with col_save:
+                if st.button("💾 이 목차 최종 승인 및 확정하기", type="primary", key="btn_save_manual_form", use_container_width=True):
+                    approved = {
+                        "topic": cur_topic,
+                        "theme": cur_theme,
+                        "sections": sections
+                    }
+                    os.makedirs("temp", exist_ok=True)
+                    with open("temp/latest_approved_outline.json", "w", encoding="utf-8") as f:
+                        json.dump(approved, f, ensure_ascii=False, indent=2)
+                    st.success(f"'{cur_theme}' 맞춤형 목차 승인 완료! (temp/latest_approved_outline.json 저장 및 2번 탭 연동 완료)")
+                    st.session_state["editing_outline"] = approved
+                    st.session_state["outline_editor_open"] = False
+                    st.rerun()
+                    
+        else:
+            cur_sections = st.session_state["editing_outline"].get("sections", [])
+            init_md = sections_to_markdown_outline(cur_theme, cur_sections)
+            
+            md_input = st.text_area(
+                "마크다운 목차 내용 (자유롭게 입력 및 수정 가능)",
+                value=init_md,
+                height=280,
+                help="## 번호. 섹션명 및 하위 불릿(- 질문) 형식으로 자유롭게 편집하세요."
+            )
+            
+            if st.button("💾 마크다운 목차 파싱 및 최종 승인", type="primary", key="btn_save_manual_md", use_container_width=True):
+                parsed_theme, parsed_sections = markdown_outline_to_sections(md_input)
+                approved = {
+                    "topic": cur_topic,
+                    "theme": parsed_theme if parsed_theme else cur_theme,
+                    "sections": parsed_sections
+                }
+                os.makedirs("temp", exist_ok=True)
+                with open("temp/latest_approved_outline.json", "w", encoding="utf-8") as f:
+                    json.dump(approved, f, ensure_ascii=False, indent=2)
+                st.success(f"'{approved['theme']}' 맞춤형 목차 ({len(parsed_sections)}개 섹션) 승인 완료! (temp/latest_approved_outline.json 저장)")
+                st.session_state["editing_outline"] = approved
+                st.session_state["outline_editor_open"] = False
+                st.rerun()
 
 # ========================================================
 # TAB 2: DLS 심층 리서치 파이프라인
@@ -384,12 +509,29 @@ with tab2:
     use_approved_outline = st.checkbox("사전 승인된 목차 파일 연동 (temp/latest_approved_outline.json)", value=has_outline)
 
     if has_outline and use_approved_outline:
-        with st.expander(f"📑 승인된 목차 구성 ({len(saved_outline.get('sections', []))}개 핵심 섹션) 미리보기", expanded=True):
+        with st.expander(f"📑 승인된 목차 구성 ({len(saved_outline.get('sections', []))}개 핵심 섹션) 미리보기 및 수정", expanded=True):
             st.markdown(f"**분석 관점/테마**: {saved_outline.get('theme', '')}")
-            for idx, s in enumerate(saved_outline.get("sections", []), 1):
-                st.markdown(f"**{idx}. {s.get('title')}**")
-                for q in s.get("target_questions", []):
-                    st.markdown(f"  - {q}")
+            tab2_edit_toggle = st.toggle("✏️ 리서치 실행 전 목차 세부 수정", value=False, key="tab2_toggle_edit")
+            if not tab2_edit_toggle:
+                for idx, s in enumerate(saved_outline.get("sections", []), 1):
+                    st.markdown(f"**{idx}. {s.get('title')}**")
+                    for q in s.get("target_questions", []):
+                        st.markdown(f"  - {q}")
+            else:
+                st.info("실행 직전 각 섹션의 제목이나 세부 질문을 즉시 수정할 수 있습니다.")
+                tab2_sections = saved_outline.get("sections", [])
+                for idx, s in enumerate(tab2_sections):
+                    st.markdown(f"**섹션 {idx+1}**")
+                    s["title"] = st.text_input(f"제목 #{idx+1}", value=s.get("title", ""), key=f"t2_sec_title_{idx}")
+                    q_str = "\n".join(s.get("target_questions", []))
+                    new_q_str = st.text_area(f"세부 질문 #{idx+1} (줄바꿈 구분)", value=q_str, key=f"t2_sec_q_{idx}", height=70)
+                    s["target_questions"] = [q.strip() for q in new_q_str.splitlines() if q.strip()]
+                    
+                if st.button("💾 수정한 목차 저장", key="btn_save_tab2_outline", type="primary"):
+                    with open("temp/latest_approved_outline.json", "w", encoding="utf-8") as f:
+                        json.dump(saved_outline, f, ensure_ascii=False, indent=2)
+                    st.success("수정된 목차가 저장되었습니다! 이제 아래에서 바로 리서치를 시작하세요.")
+                    st.rerun()
 
     pipeline_mode = st.radio(
         "실행 파이프라인 엔진 모드",
@@ -445,16 +587,31 @@ with tab2:
                 )
 
             status_box.update(label="✅ DLS 자율 심층 리서치 완료!", state="complete", expanded=False)
-            st.success("심층 리서치 완료! 아래에서 생성된 리포트를 바로 확인하실 수 있습니다.")
+            st.success("심층 리서치 및 4대 전문 보고서 번들 생성 완료!")
             if gen_report_path and os.path.exists(gen_report_path):
                 with open(gen_report_path, "r", encoding="utf-8") as rf:
                     res_text = rf.read()
-                st.download_button(
-                    label="📥 마크다운 리포트 다운로드",
-                    data=res_text,
-                    file_name=os.path.basename(gen_report_path),
-                    mime="text/markdown"
-                )
+                
+                col_d1, col_d2 = st.columns(2)
+                with col_d1:
+                    st.download_button(
+                        label="📥 원본 마크다운 리포트 다운로드",
+                        data=res_text,
+                        file_name=os.path.basename(gen_report_path),
+                        mime="text/markdown",
+                        key="tab2_dl_single"
+                    )
+                with col_d2:
+                    bundles = get_available_bundles()
+                    if bundles and os.path.exists(bundles[0].get("zip_path", "")):
+                        with open(bundles[0]["zip_path"], "rb") as zf:
+                            st.download_button(
+                                label="📦 4대 보고서 번들 ZIP 다운로드",
+                                data=zf.read(),
+                                file_name=os.path.basename(bundles[0]["zip_path"]),
+                                mime="application/zip",
+                                key="tab2_dl_zip"
+                            )
                 st.markdown("---")
                 st.markdown(res_text)
         except Exception as e:
@@ -462,9 +619,157 @@ with tab2:
             st.error(f"오류: {e}")
 
 # ========================================================
-# TAB 3: A/B 엔진 벤치마크
+# TAB 3: 완성된 리포트 열람실 (4대 번들 & 단일 리포트)
 # ========================================================
 with tab3:
+    st.markdown("### 📑 생성된 심층 리포트 아카이브")
+    
+    view_mode = st.radio(
+        "열람 모드 선택",
+        ["📦 4대 전문 보고서 패키지 (Multi-Tier Bundle)", "📄 단일 원본 리포트 (.md)"],
+        horizontal=True,
+        key="tab3_view_mode"
+    )
+    
+    if view_mode == "📦 4대 전문 보고서 패키지 (Multi-Tier Bundle)":
+        bundles = get_available_bundles()
+        if not bundles:
+            st.info("아직 생성된 4대 보고서 번들이 없습니다. 아래 버튼을 눌러 기존 최신 리포트를 4대 보고서 번들로 즉시 변환해 보세요!")
+            report_files = sorted(glob.glob("output/*.md"), key=os.path.getmtime, reverse=True)
+            if report_files:
+                col_gen_src, col_gen_btn = st.columns([3, 1])
+                with col_gen_src:
+                    src_to_convert = st.selectbox("변환할 원본 리포트 선택", report_files, key="tab3_convert_sel")
+                with col_gen_btn:
+                    st.write("")
+                    st.write("")
+                    if st.button("🚀 4대 보고서 번들 생성", type="primary", key="tab3_btn_convert"):
+                        with st.spinner("4대 전문 보고서(전략 브리프, 기술보고서, 벤치마크, 리스크/DD) 패키징 중..."):
+                            try:
+                                with open(src_to_convert, "r", encoding="utf-8") as f:
+                                    raw_c = f.read()
+                                llm = get_chat_model(provider=provider_option, model=model_name)
+                                b_res = create_report_bundle(
+                                    topic=os.path.basename(src_to_convert).replace(".md", "").replace("report_", ""),
+                                    technical_report=raw_c,
+                                    llm=llm
+                                )
+                                st.success(f"번들 생성 완료! ({b_res['bundle_id']})")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"번들 생성 실패: {e}")
+        else:
+            with st.expander("➕ 기존 단일 리포트를 4대 전문 보고서 번들로 추가 변환하기", expanded=False):
+                st.caption("기존에 생성된 단일 마크다운 리포트를 분석하여 4대 전문 보고서(전략 브리프, 기술보고서, 벤치마크, 리스크/DD) 패키지로 즉시 파생·저장합니다.")
+                report_files = sorted(glob.glob("output/*.md"), key=os.path.getmtime, reverse=True)
+                if report_files:
+                    col_gen_src, col_gen_btn = st.columns([3, 1])
+                    with col_gen_src:
+                        src_to_convert = st.selectbox("변환할 원본 리포트 선택", report_files, key="tab3_convert_sel_exist")
+                    with col_gen_btn:
+                        st.write("")
+                        st.write("")
+                        if st.button("🚀 4대 번들 즉시 생성", type="primary", key="tab3_btn_convert_exist"):
+                            with st.spinner("4대 전문 보고서 패키징 중..."):
+                                try:
+                                    with open(src_to_convert, "r", encoding="utf-8") as f:
+                                        raw_c = f.read()
+                                    llm = get_chat_model(provider=provider_option, model=model_name)
+                                    b_res = create_report_bundle(
+                                        topic=os.path.basename(src_to_convert).replace(".md", "").replace("report_", ""),
+                                        technical_report=raw_c,
+                                        llm=llm
+                                    )
+                                    st.success(f"번들 생성 완료! ({b_res['bundle_id']})")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"번들 생성 실패: {e}")
+
+            bundle_options = {f"📦 {b.get('topic', '리서치')} ({b.get('created_at', '')[:16]})": b for b in bundles}
+            sel_bundle_label = st.selectbox("열람할 보고서 번들 선택", list(bundle_options.keys()), key="sel_bundle")
+            chosen_bundle = bundle_options[sel_bundle_label]
+            b_dir = Path(chosen_bundle["dir_path"])
+            
+            # Bundle Header with ZIP download
+            col_b_info, col_b_zip = st.columns([3, 1])
+            with col_b_info:
+                st.markdown(f"#### 📦 **{chosen_bundle.get('topic')}**")
+                st.caption(f"생성일시: {chosen_bundle.get('created_at')} | 포함 문서 수: {chosen_bundle.get('reports_count')}개 | 출처 수: {chosen_bundle.get('total_sources_count')}개")
+            with col_b_zip:
+                zip_path = chosen_bundle.get("zip_path")
+                if zip_path and os.path.exists(zip_path):
+                    with open(zip_path, "rb") as zf:
+                        st.download_button(
+                            label="📦 4종 전체 ZIP 다운로드",
+                            data=zf.read(),
+                            file_name=f"{chosen_bundle.get('bundle_id')}.zip",
+                            mime="application/zip",
+                            key="btn_dl_bundle_zip",
+                            use_container_width=True
+                        )
+            
+            st.markdown("---")
+            
+            # 4 Sub-Tabs for 4 Core Reports
+            sub1, sub2, sub3, sub4 = st.tabs([
+                "👔 1. 경영진 전략 1-Pager",
+                "🔬 2. 심층 기술·산업 보고서",
+                "📊 3. 경쟁사 벤치마크 매트릭스",
+                "⚠️ 4. 리스크 & Due-Diligence"
+            ])
+            
+            sub_files = [
+                (sub1, "01_executive_brief.md", "👔 경영진 전략 브리프"),
+                (sub2, "02_technical_deepdive.md", "🔬 심층 기술 분석서"),
+                (sub3, "03_competitive_benchmark.md", "📊 경쟁사 벤치마크"),
+                (sub4, "04_risk_due_diligence.md", "⚠️ 리스크 및 검증 과제")
+            ]
+            
+            for tab_target, fname, tab_title in sub_files:
+                with tab_target:
+                    f_path = b_dir / fname
+                    if f_path.exists():
+                        with open(f_path, "r", encoding="utf-8") as rf:
+                            doc_text = rf.read()
+                        
+                        col_doc_dl, _ = st.columns([1, 3])
+                        with col_doc_dl:
+                            st.download_button(
+                                label=f"📥 {fname} 다운로드",
+                                data=doc_text,
+                                file_name=fname,
+                                mime="text/markdown",
+                                key=f"dl_{fname}"
+                            )
+                        st.markdown(doc_text)
+                    else:
+                        st.warning(f"{fname} 문서가 존재하지 않습니다.")
+                        
+    else:
+        # 단일 원본 리포트 열람
+        report_files = sorted(glob.glob("output/*.md"), key=os.path.getmtime, reverse=True)
+        if not report_files:
+            st.info("아직 생성된 리포트가 없습니다. 2번 탭에서 심층 리서치를 실행해보세요.")
+        else:
+            selected_file = st.selectbox("열람할 리포트 파일 선택", options=report_files, key="sel_single_report")
+            if selected_file and os.path.exists(selected_file):
+                with open(selected_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                
+                st.download_button(
+                    label="📥 마크다운 파일 다운로드",
+                    data=content,
+                    file_name=os.path.basename(selected_file),
+                    mime="text/markdown",
+                    key="dl_single_md"
+                )
+                st.markdown("---")
+                st.markdown(content)
+
+# ========================================================
+# TAB 4: A/B 엔진 벤치마크
+# ========================================================
+with tab4:
     st.markdown("### 📊 Baseline (Prompt Stuffing) vs LlamaIndex (SentenceSplitter & Rerank) A/B 벤치마크")
     st.markdown("원시 본문 직접 주입 방식과 LlamaIndex 문장 단위 청킹 & 동적 재순위화 방식의 속도, 비용, 인용 정밀도를 비교합니다.")
 
@@ -491,24 +796,183 @@ with tab3:
         st.markdown(bm_md)
 
 # ========================================================
-# TAB 4: 완성된 리포트 열람실
+# TAB 5: 스마트 리포트 분석실 (Dashboard & Q&A)
 # ========================================================
-with tab4:
-    st.markdown("### 📑 생성된 심층 리포트 아카이브")
+with tab5:
+    st.markdown("### 💎 스마트 리포트 분석실 (Executive Dashboard & AI Q&A)")
+    st.markdown("생성된 심층 리포트를 30초 핵심 브리핑, KPI 지표 카드, 구조화된 섹션으로 자동 가공하고, AI와 대화하며 심층 질의응답할 수 있습니다.")
+
     report_files = sorted(glob.glob("output/*.md"), key=os.path.getmtime, reverse=True)
     if not report_files:
         st.info("아직 생성된 리포트가 없습니다. 2번 탭에서 심층 리서치를 실행해보세요.")
     else:
-        selected_file = st.selectbox("열람할 리포트 파일 선택", options=report_files)
-        if selected_file and os.path.exists(selected_file):
-            with open(selected_file, "r", encoding="utf-8") as f:
-                content = f.read()
-            
-            st.download_button(
-                label="📥 마크다운 파일 다운로드",
-                data=content,
-                file_name=os.path.basename(selected_file),
-                mime="text/markdown"
+        col_sel, col_mode = st.columns([3, 2])
+        with col_sel:
+            selected_report = st.selectbox("분석 대상 리포트 선택", options=report_files, key="tab5_selected_report")
+        with col_mode:
+            view_subtab = st.radio(
+                "분석 모드",
+                options=["📋 구조화 대시보드 (Executive View)", "💬 리포트 심층 Q&A (Chat with Report)"],
+                horizontal=True
             )
-            st.markdown("---")
-            st.markdown(content)
+
+        if selected_report and os.path.exists(selected_report):
+            with open(selected_report, "r", encoding="utf-8") as f:
+                raw_text = f.read()
+
+            parsed = parse_report_for_dashboard(raw_text)
+
+            # Metadata Hero Banner
+            created_str = str(parsed['metadata'].get('created_at', '최근'))[:19].replace('T', ' ')
+            model_disp = parsed['metadata'].get('model', model_name)
+            sources_disp = parsed['metadata'].get('scraped_sources_count', len(parsed['citations']))
+
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%); color: white; padding: 18px 24px; border-radius: 10px; margin-bottom: 20px;'>
+                <div style='font-size: 1.4rem; font-weight: 700; margin-bottom: 6px;'>📊 {parsed['topic']}</div>
+                <div style='font-size: 0.9rem; opacity: 0.9;'>
+                    🕒 작성: {created_str} &nbsp;|&nbsp; 
+                    🤖 분석 모델: <code>{model_disp}</code> &nbsp;|&nbsp; 
+                    📡 검증 출처: <b>{sources_disp}건</b> 교차 검증
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            if view_subtab == "📋 구조화 대시보드 (Executive View)":
+                # 1. Executive Summary (30-sec briefing)
+                st.markdown("#### 💡 Executive Briefing (30초 핵심 브리핑)")
+                exec_cards_html = ""
+                for point in parsed["executive_summary"]:
+                    exec_cards_html += f"<div style='background: #f1f8e9; border-left: 4px solid #43a047; padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 0.96rem; color: #1b5e20;'>{point}</div>"
+                st.markdown(exec_cards_html, unsafe_allow_html=True)
+
+                # 2. Key Metrics (KPIs)
+                if parsed["kpi_metrics"]:
+                    st.markdown("#### 📊 핵심 정량 지표 (Key Metrics)")
+                    cols = st.columns(len(parsed["kpi_metrics"][:4]))
+                    for idx, m in enumerate(parsed["kpi_metrics"][:4]):
+                        with cols[idx]:
+                            st.metric(label=m["label"], value=m["value"], delta=m["delta"])
+
+                st.markdown("---")
+
+                # 3. Structured Sections (Accordions)
+                st.markdown("#### 📑 심층 분석 섹션 (클릭하여 접기/펼치기)")
+
+                # Section 1: Facts
+                with st.expander(f"🛡️ 1. 확인된 사실 (Verified Facts) — {len(parsed['facts'])}건", expanded=True):
+                    if parsed["facts"]:
+                        for f_idx, f_item in enumerate(parsed["facts"]):
+                            st.markdown(f"**[{f_idx+1}]** {f_item}")
+                    else:
+                        st.info("추출된 팩트 항목이 없습니다.")
+
+                # Section 2: Analysis
+                with st.expander("🔍 2. 에이전트 해석 및 시장 시사점 (Analysis & Implications)", expanded=True):
+                    if parsed["analysis_text"]:
+                        st.markdown(parsed["analysis_text"])
+                    else:
+                        st.info("추출된 분석 항목이 없습니다.")
+
+                # Section 3: Risks & Open Questions
+                with st.expander("⚠️ 3. 미확인 주장 및 향후 검증 과제 (Open Questions & Risks)", expanded=True):
+                    if parsed["risks_text"]:
+                        st.markdown(parsed["risks_text"])
+                    else:
+                        st.info("추출된 미확인 검증 과제가 없습니다.")
+
+                # Custom outline sections if any
+                for c_sec in parsed["custom_sections"]:
+                    with st.expander(f"📌 {c_sec['title']}", expanded=False):
+                        st.markdown(c_sec["body"])
+
+                # Section 4: Citations
+                with st.expander(f"📚 4. 검증 뉴스 및 참고 출처 링크 — {len(parsed['citations'])}건", expanded=False):
+                    if parsed["citations"]:
+                        cit_cols = st.columns(2)
+                        for c_idx, cit in enumerate(parsed["citations"]):
+                            col_target = cit_cols[c_idx % 2]
+                            with col_target:
+                                st.markdown(f"**[^{cit['index']}]** [{cit['title']}]({cit['url']}) `({cit['domain']})`")
+                    else:
+                        st.info("등록된 각주 링크가 없습니다.")
+
+                # Bottom Action Bar
+                st.markdown("---")
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    summary_text = "\n".join(parsed["executive_summary"])
+                    st.download_button(
+                        label="📋 3줄 핵심 요약 다운로드",
+                        data=summary_text,
+                        file_name=f"summary_{os.path.basename(selected_report)}.txt",
+                        mime="text/plain",
+                        key="tab5_dl_summary"
+                    )
+                with col_b2:
+                    st.download_button(
+                        label="📥 원문 마크다운 파일 다운로드",
+                        data=raw_text,
+                        file_name=os.path.basename(selected_report),
+                        mime="text/markdown",
+                        key="tab5_dl_raw"
+                    )
+
+            else:
+                # 💬 Chat with Report
+                st.markdown("#### 💬 리포트 심층 질의응답 (Chat with Report)")
+                st.markdown("선택된 보고서의 모든 팩트와 분석을 바탕으로 AI와 대화하며 필요한 정보를 즉시 발굴합니다.")
+
+                chat_key = f"chat_history_{selected_report}"
+                if chat_key not in st.session_state:
+                    st.session_state[chat_key] = [
+                        {"role": "assistant", "content": f"안녕하세요! 선택하신 **'{parsed['topic']}'** 리포트에 대해 무엇이든 질문해 주세요. 핵심 수치, 기업별 비교, 리스크 요인 등을 정확히 찾아 답변해 드립니다."}
+                    ]
+
+                st.markdown("**⚡ 빠른 추천 질문:**")
+                q_cols = st.columns(3)
+                quick_query = None
+                with q_cols[0]:
+                    if st.button("🎯 핵심 결론 3가지 요약", key="qp1", use_container_width=True):
+                        quick_query = "이 보고서의 가장 핵심적인 결론 3가지를 명확히 요약해줘."
+                with q_cols[1]:
+                    if st.button("📊 언급된 모든 수치/점유율 표 정리", key="qp2", use_container_width=True):
+                        quick_query = "보고서에 언급된 모든 기업별 점유율, 생산량, 금액 등 정량적 수치를 마크다운 표로 깔끔하게 정리해줘."
+                with q_cols[2]:
+                    if st.button("⚠️ 리스크 및 미확인 과제 요약", key="qp3", use_container_width=True):
+                        quick_query = "보고서에서 지적한 가장 큰 리스크 요인과 향후 추가 검증이 필요한 과제를 상세히 설명해줘."
+
+                for msg in st.session_state[chat_key]:
+                    with st.chat_message(msg["role"]):
+                        st.markdown(msg["content"])
+
+                user_input = st.chat_input("이 보고서에 대해 질문하세요 (예: 삼성전자의 2026년 HBM4 공급 전략은?)...")
+                prompt_to_run = quick_query if quick_query else user_input
+
+                if prompt_to_run:
+                    st.session_state[chat_key].append({"role": "user", "content": prompt_to_run})
+                    with st.chat_message("user"):
+                        st.markdown(prompt_to_run)
+
+                    with st.chat_message("assistant"):
+                        with st.spinner("보고서 본문을 분석하여 답변 생성 중..."):
+                            try:
+                                llm = get_chat_model(provider=provider_option, model=model_name)
+                                qa_prompt = f"""당신은 전문 수석 산업 분석가입니다.
+사용자가 선택한 아래 [심층 리서치 보고서 원문]의 내용만을 엄격히 근거로 삼아 질문에 답변하세요.
+보고서에 없는 내용은 지어내지 말고 "보고서에 해당 내용이 언급되어 있지 않습니다"라고 명시하세요.
+가능한 경우 보고서의 구체적인 수치와 팩트를 인용하여 친절하고 명확하게 답변하세요.
+
+[심층 리서치 보고서 원문]
+제목: {parsed['topic']}
+{raw_text[:12000]}
+
+[사용자 질문]
+{prompt_to_run}
+"""
+                                res = llm.invoke(qa_prompt)
+                                ans_text = res.content if hasattr(res, "content") else str(res)
+                                st.markdown(ans_text)
+                                st.session_state[chat_key].append({"role": "assistant", "content": ans_text})
+                            except Exception as e:
+                                st.error(f"답변 생성 중 오류: {e}")

@@ -71,4 +71,8 @@ class DLSState(TypedDict, total=False):
     final_report: str                        # 3분할 팩트 + 각주 완결 마크다운 보고서
     run_id: str                              # 실행 세션 ID (run_YYYYMMDD_HHMMSS)
     output_path: str                         # 결과 파일 저장 경로
+    bundle_dir: str                          # 4대 보고서 번들 저장 폴더
+    bundle_manifest: Dict[str, Any]          # 번들 매니페스트 메타데이터
+    bundle_zip: str                          # 번들 ZIP 압축파일 경로
     errors: List[Dict[str, Any]]             # 실행 중 발생한 예외 로그
+

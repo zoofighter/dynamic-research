@@ -4,7 +4,12 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from pydantic import BaseModel
 import requests
-import trafilatura
+
+try:
+    import trafilatura
+except ImportError:
+    trafilatura = None
+
 from src.utils.config import get_config
 
 class ScrapedDocument(BaseModel):
@@ -41,6 +46,22 @@ class TrafilaturaScraperProvider(ScraperProvider):
         self.max_len = max_len
 
     def scrape(self, url: str) -> ScrapedDocument:
+        if trafilatura is None:
+            try:
+                resp = requests.get(url, timeout=self.timeout)
+                if resp.status_code == 200:
+                    html = resp.text
+                    title_match = re.search(r'<title>(.*?)</title>', html, re.I | re.S)
+                    title = title_match.group(1).strip() if title_match else ""
+                    clean_html = re.sub(r'<(script|style).*?>.*?</\1>', '', html, flags=re.I | re.S)
+                    text = re.sub(r'<[^>]+>', ' ', clean_html)
+                    text = re.sub(r'\s+', ' ', text).strip()
+                    cleaned = clean_markdown_content(text, max_length=self.max_len)
+                    return ScrapedDocument(url=url, title=title, content=cleaned, method="trafilatura", success=True)
+                else:
+                    return ScrapedDocument(url=url, success=False, error=f"HTTP {resp.status_code}", method="trafilatura")
+            except Exception as e:
+                return ScrapedDocument(url=url, success=False, error=str(e), method="trafilatura")
         try:
             downloaded = trafilatura.fetch_url(url)
             if not downloaded:

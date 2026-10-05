@@ -240,9 +240,28 @@ search_queries:
     with open(timestamped_report_path, "w", encoding="utf-8") as f:
         f.write(final_output)
 
+    # 4대 전문 보고서 패키지 (Multi-Tier Report Bundle) 자동 생성
+    try:
+        from src.utils.bundle_packager import create_report_bundle
+        bundle_res = create_report_bundle(
+            topic=topic,
+            technical_report=final_output,
+            all_sources=scraped_documents,
+            llm=llm,
+            output_base_dir=ROOT_DIR / "output" / "bundles"
+        )
+        print(f"📦 [4대 보고서 번들 패키징 완료] {bundle_res['bundle_dir']}")
+        print(f"   • 👔 01_executive_brief.md (경영진 1-Pager)")
+        print(f"   • 🔬 02_technical_deepdive.md (심층 기술분석)")
+        print(f"   • 📊 03_competitive_benchmark.md (경쟁사 벤치마크)")
+        print(f"   • ⚠️ 04_risk_due_diligence.md (리스크/DD 체크리스트)")
+        print(f"   • 📦 full_bundle.zip (통합 압축파일)")
+    except Exception as e:
+        print(f"⚠️ 번들 생성 중 경고: {e}")
+
     elapsed = time.perf_counter() - start_time
     print("\n" + "=" * 70)
-    print(f"🎉 [성공] DLS 리포트 생성 완료! (소요 시간: {elapsed:.2f}초)")
+    print(f"🎉 [성공] DLS 리포트 및 4대 번들 생성 완료! (소요 시간: {elapsed:.2f}초)")
     print(f"📁 수집 출처 수: {len(scraped_documents)}개")
     print(f"📁 기본 경로: {report_path}")
     print(f"📁 아카이브 경로: {timestamped_report_path}")

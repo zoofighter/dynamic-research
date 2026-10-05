@@ -4,8 +4,31 @@ from typing import List, Dict, Any
 from src.engines.base import BaseDataEngine, EngineResult
 from src.providers.llm import get_chat_model
 
-from llama_index.core import Document
-from llama_index.core.node_parser import SentenceSplitter
+try:
+    from llama_index.core import Document
+    from llama_index.core.node_parser import SentenceSplitter
+    HAS_LLAMA_INDEX = True
+except ImportError:
+    HAS_LLAMA_INDEX = False
+    class Document:
+        def __init__(self, text="", metadata=None):
+            self.text = text
+            self.metadata = metadata or {}
+    class SentenceSplitter:
+        def __init__(self, chunk_size=512, chunk_overlap=50):
+            self.chunk_size = chunk_size
+            self.chunk_overlap = chunk_overlap
+        def get_nodes_from_documents(self, docs):
+            nodes = []
+            for d in docs:
+                txt = d.text
+                for i in range(0, max(1, len(txt)), self.chunk_size):
+                    chunk = txt[i:i+self.chunk_size]
+                    node = type("Node", (), {})()
+                    node.text = chunk
+                    node.metadata = d.metadata
+                    nodes.append(node)
+            return nodes
 
 class LlamaIndexDataEngine(BaseDataEngine):
     """

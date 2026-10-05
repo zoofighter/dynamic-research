@@ -11,6 +11,7 @@ from src.providers.scraper import get_scraper_provider
 from src.providers.llm import get_chat_model
 from src.utils.dedup import deduplicate_results
 from src.utils.markdown_parser import assemble_final_report
+from src.utils.bundle_packager import create_report_bundle
 from src.prompts.query_prompts import QUERY_DECOMPOSITION_PROMPT, SUB_QUERY_EXPANSION_PROMPT
 from src.prompts.reflection_prompts import REFLECTION_EVALUATION_PROMPT
 from src.prompts.synthesis_prompts import SECTION_SYNTHESIS_PROMPT
@@ -301,9 +302,32 @@ def assemble_report(state: DLSState) -> Dict[str, Any]:
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(final_report)
         
+    # Generate 4-Tier Report Bundle
+    bundle_dir_str = ""
+    bundle_manifest_dict = {}
+    bundle_zip_str = ""
+    try:
+        llm = get_chat_model(tier="standard")
+        bundle_res = create_report_bundle(
+            topic=topic,
+            technical_report=final_report,
+            all_sources=all_sources,
+            llm=llm,
+            output_base_dir=output_dir / "bundles",
+            run_id=state.get("run_id", "default")
+        )
+        bundle_dir_str = bundle_res.get("bundle_dir", "")
+        bundle_manifest_dict = bundle_res.get("manifest", {})
+        bundle_zip_str = bundle_res.get("zip_path", "")
+    except Exception as e:
+        print(f"⚠️ Report bundle generation warning: {e}")
+        
     return {
         "final_report": final_report,
-        "output_path": str(output_path)
+        "output_path": str(output_path),
+        "bundle_dir": bundle_dir_str,
+        "bundle_manifest": bundle_manifest_dict,
+        "bundle_zip": bundle_zip_str
     }
 
 # Routing functions for conditional edges
