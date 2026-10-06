@@ -28,6 +28,16 @@ from src.utils.markdown_parser import (
     sections_to_markdown_outline,
     markdown_outline_to_sections
 )
+import src.utils.outline_history
+importlib.reload(src.utils.outline_history)
+from src.utils.outline_history import (
+    save_outline_history,
+    list_outline_history,
+    load_outline_history,
+    delete_outline_history,
+    set_active_approved_outline,
+    sync_existing_latest_to_history
+)
 from src.utils.bundle_packager import get_available_bundles, create_report_bundle
 from scripts.run_local_dls import run_dls
 
@@ -212,6 +222,53 @@ with tab1:
     custom_topic = st.text_input("또는 직접 토픽 입력 (원하는 주제를 자유롭게 작성)", value="")
     final_topic = custom_topic.strip() if custom_topic.strip() else selected_topic
 
+    # ----------------------------------------------------
+    # 🎯 [옵션] 핵심 질문 (Core Questions) 설정
+    # ----------------------------------------------------
+    has_existing_cq = bool(st.session_state.get("core_questions_text", "").strip())
+    with st.expander("🎯 핵심 질문 (Core Questions) 옵션 설정 (선택 사항 — AI 추천 또는 직접 작성)", expanded=has_existing_cq):
+        st.markdown(
+            "리서치를 통해 **반드시 답을 찾아야 하는 3~5가지 핵심 질문**을 설정할 수 있습니다.\n"
+            "핵심 질문을 입력하면 아래 목차 생성 시 각 섹션과 세부 탐색 질문이 이 핵심 질문들을 집중 해결하도록 정밀하게 연계됩니다."
+        )
+        col_cq_ai, col_cq_clear = st.columns([3, 1])
+        with col_cq_ai:
+            if st.button("🤖 주제 맞춤 핵심 질문 AI 자동 추천 (3개)", use_container_width=True, help="현재 선택된 주제를 바탕으로 날카로운 핵심 질문 3개를 AI가 추천합니다."):
+                with st.spinner(f"'{final_topic}' 맞춤 핵심 질문 3개 도출 중..."):
+                    cq_llm = get_chat_model(provider=provider_option, model=model_name)
+                    cq_prompt = f"""당신은 수석 테크 리서치 애널리스트입니다.
+주제: {final_topic}
+
+위 주제에 대해 리서치 리포트를 작성할 때 반드시 답을 찾아야 하는 가장 날카롭고 구체적인 핵심 질문 3개를 한국어로 작성하세요.
+각 질문은 수치, 일정, 수율, 시장 점유율, 고객사 계약 등 구체적 팩트를 파고들어야 합니다.
+
+반드시 아래와 같이 번호(1., 2., 3.)와 함께 한 줄에 하나씩 질문만 출력하세요. 다른 설명이나 머리말은 일절 생략하세요:
+1. ...
+2. ...
+3. ..."""
+                    cq_res = cq_llm.invoke(cq_prompt)
+                    cq_text_raw = cq_res.content if isinstance(cq_res.content, str) else str(cq_res.content)
+                    import re
+                    cq_text_cleaned = re.sub(r"<think>.*?</think>", "", cq_text_raw, flags=re.DOTALL).strip()
+                    st.session_state["core_questions_text"] = cq_text_cleaned
+                    st.success("핵심 질문 3개가 추천되었습니다! 아래 입력창에서 확인하거나 수정할 수 있습니다.")
+                    st.rerun()
+        with col_cq_clear:
+            if st.button("🗑️ 질문 비우기", use_container_width=True):
+                st.session_state["core_questions_text"] = ""
+                st.rerun()
+
+        core_q_input = st.text_area(
+            "핵심 질문 목록 (한 줄에 질문 하나씩 입력, 비워두면 AI 기본 목차 알고리즘 적용)",
+            value=st.session_state.get("core_questions_text", ""),
+            height=100,
+            placeholder="예시:\n1. 주요 공급사 및 12단/16단 양산 일정 및 출하 규모는?\n2. 엔비디아 등 주요 고객사 퀄 승인 여부와 공급 비중은?\n3. 경쟁사 대비 공정 수율 및 발열/전력 효율 격차는?",
+            help="한 줄에 질문 하나씩 입력하세요. 번호(1., 2.)는 자동으로 인식됩니다."
+        )
+        st.session_state["core_questions_text"] = core_q_input
+        active_core_questions = [q.strip() for q in core_q_input.splitlines() if q.strip()]
+        st.session_state["active_core_questions"] = active_core_questions
+
     col_mode, col_btn = st.columns([3, 2])
     with col_mode:
         outline_mode = st.radio(
@@ -233,10 +290,20 @@ with tab1:
         with st.spinner(f"'{final_topic}'에 대한 {'4대(A/B/C/D)' if is_4_mode else '2대(A/B)'} 심층 목차 생성 중..."):
             llm = get_chat_model(provider=provider_option, model=model_name)
             
+            active_cq = st.session_state.get("active_core_questions", [])
+            core_q_prompt_block = ""
+            if active_cq:
+                cq_bullets = "\n".join([f"  - {q}" for q in active_cq])
+                core_q_prompt_block = f"""
+[사용자 정의 핵심 질문 (Core Questions) - 최우선 반영 요구사항]
+다음 핵심 질문들에 대한 구체적 해답, 실증 팩트, 비교 데이터가 각 목차의 섹션과 세부 질문(target_questions)에 유기적으로 배치되도록 반드시 아웃라인을 설계하세요:
+{cq_bullets}
+"""
+
             if is_4_mode:
                 prompt = f"""당신은 수석 리서치 디렉터입니다.
 주제: {final_topic}
-
+{core_q_prompt_block}
 위 주제의 특성(예: 반도체 하드웨어, AI 소프트웨어/에이전트, 딥테크, 플랫폼 비즈니스 등)을 심층 분석하여, 서로 다른 4가지 차별화된 심층 분석 관점의 목차(Outline A, B, C, D)를 각각 4개 핵심 섹션으로 제안하세요.
 
 [4대 관점 가이드]
@@ -295,7 +362,7 @@ with tab1:
             else:
                 prompt = f"""당신은 수석 리서치 디렉터입니다.
 주제: {final_topic}
-
+{core_q_prompt_block}
 위 주제에 대해 2가지 상이한 분석 관점의 목차(Outline A, Outline B)를 각각 4개 핵심 섹션으로 제안하세요.
 Outline A: 산업 및 비즈니스 전략 관점
 Outline B: 기술 사양 및 엔지니어링/수율 관점
@@ -335,8 +402,11 @@ Outline B: 기술 사양 및 엔지니어링/수율 관점
             if match:
                 try:
                     outline_obj = json.loads(match.group(0))
+                    outline_obj["core_questions"] = active_cq
                     st.session_state["current_outlines"] = outline_obj
-                    st.success(f"목차 후보 {'4대(A/B/C/D)' if is_4_mode else '2대(A/B)'} 생성 완료!")
+                    st.session_state["active_core_questions"] = active_cq
+                    msg = f"목차 후보 {'4대(A/B/C/D)' if is_4_mode else '2대(A/B)'} 생성 완료! (🎯 핵심 질문 {len(active_cq)}개 반영됨)" if active_cq else f"목차 후보 {'4대(A/B/C/D)' if is_4_mode else '2대(A/B)'} 생성 완료!"
+                    st.success(msg)
                 except Exception as e:
                     st.error(f"JSON 파싱 실패: {e}")
             else:
@@ -347,6 +417,13 @@ Outline B: 기술 사양 및 엔지니어링/수율 관점
         outlines = st.session_state["current_outlines"].get("outlines", [])
         emojis = {"A": "🅰️", "B": "🅱️", "C": "🅲", "D": "🅳"}
         
+        active_cqs = st.session_state.get("active_core_questions", [])
+        if active_cqs:
+            with st.container(border=True):
+                st.markdown("🎯 **목차 후보에 반영된 핵심 질문 (Core Questions)**")
+                for cq_i, cq_txt in enumerate(active_cqs, 1):
+                    st.markdown(f"**{cq_i}.** {cq_txt}")
+
         # 2열 그리드로 렌더링
         for row_start in range(0, len(outlines), 2):
             cols = st.columns(2)
@@ -364,21 +441,22 @@ Outline B: 기술 사양 및 엔지니어링/수율 관점
                                 st.markdown(f"  - {q}")
                         col_app, col_edit = st.columns([1, 1])
                         with col_app:
-                            if st.button(f"✅ Outline {oid} 바로 승인", key=f"btn_approve_{oid}", use_container_width=True):
-                                approved = {
-                                    "topic": final_topic,
-                                    "theme": theme,
-                                    "sections": outline_item.get("sections")
-                                }
-                                os.makedirs("temp", exist_ok=True)
-                                with open("temp/latest_approved_outline.json", "w", encoding="utf-8") as f:
-                                    json.dump(approved, f, ensure_ascii=False, indent=2)
-                                st.success(f"Outline {oid} ({theme}) 승인 완료! (temp/latest_approved_outline.json 저장)")
+                            if st.button(f"✅ Outline {oid} 바로 승인 및 저장", key=f"btn_approve_{oid}", use_container_width=True):
+                                approved = save_outline_history(
+                                    topic=final_topic,
+                                    theme=theme,
+                                    sections=outline_item.get("sections", []),
+                                    source=f"ai_outline_{oid}",
+                                    memo=f"AI 추천 Outline {oid} 채택",
+                                    core_questions=st.session_state.get("active_core_questions", [])
+                                )
+                                st.success(f"Outline {oid} ({theme}) 승인 및 히스토리 저장 완료! (ID: {approved['id']})")
                         with col_edit:
                             if st.button(f"✏️ Outline {oid} 편집기로 열기", key=f"btn_load_{oid}", use_container_width=True):
                                 st.session_state["editing_outline"] = {
                                     "topic": final_topic,
                                     "theme": theme,
+                                    "core_questions": st.session_state.get("active_core_questions", []),
                                     "sections": [dict(s) for s in outline_item.get("sections", [])]
                                 }
                                 st.session_state["outline_editor_open"] = True
@@ -393,6 +471,7 @@ Outline B: 기술 사양 및 엔지니어링/수율 관점
             st.session_state["editing_outline"] = {
                 "topic": final_topic,
                 "theme": "사용자 맞춤형 분석 관점",
+                "core_questions": st.session_state.get("active_core_questions", []),
                 "sections": [
                     {"section_id": "sec_0", "title": "핵심 시장 동향 및 공급망 현황", "target_questions": ["주요 공급사 및 양산 일정", "고객사 계약 및 퀄테스트 현황"]},
                     {"section_id": "sec_1", "title": "기술 사양 및 공정 수율 분석", "target_questions": ["공정 노드 및 패키징 기술", "수율 이슈 및 개선 로드맵"]}
@@ -409,6 +488,18 @@ Outline B: 기술 사양 및 엔지니어링/수율 관점
         cur_topic = st.text_input("목차 대상 주제", value=st.session_state["editing_outline"].get("topic", final_topic), key="edit_outline_topic")
         cur_theme = st.text_input("분석 테마/관점 명칭", value=st.session_state["editing_outline"].get("theme", "맞춤형 분석 관점"), key="edit_outline_theme")
         
+        cur_editor_cq_list = st.session_state["editing_outline"].get("core_questions", [])
+        cur_editor_cq_str = "\n".join(cur_editor_cq_list)
+        edit_cq_input = st.text_area(
+            "🎯 목표 핵심 질문 (Core Questions - 선택 사항, 줄바꿈으로 구분)",
+            value=cur_editor_cq_str,
+            key="edit_outline_core_questions",
+            height=75,
+            help="이 목차가 집중 해결하고자 하는 3~5가지 핵심 질문을 작성합니다."
+        )
+        editor_active_core_questions = [q.strip() for q in edit_cq_input.splitlines() if q.strip()]
+        st.session_state["editing_outline"]["core_questions"] = editor_active_core_questions
+
         if edit_mode == "📋 섹션별 폼 편집 (추천)":
             sections = st.session_state["editing_outline"].get("sections", [])
             sec_to_remove = None
@@ -446,16 +537,16 @@ Outline B: 기술 사양 및 엔지니어링/수율 관점
                     st.rerun()
                     
             with col_save:
-                if st.button("💾 이 목차 최종 승인 및 확정하기", type="primary", key="btn_save_manual_form", use_container_width=True):
-                    approved = {
-                        "topic": cur_topic,
-                        "theme": cur_theme,
-                        "sections": sections
-                    }
-                    os.makedirs("temp", exist_ok=True)
-                    with open("temp/latest_approved_outline.json", "w", encoding="utf-8") as f:
-                        json.dump(approved, f, ensure_ascii=False, indent=2)
-                    st.success(f"'{cur_theme}' 맞춤형 목차 승인 완료! (temp/latest_approved_outline.json 저장 및 2번 탭 연동 완료)")
+                if st.button("💾 이 목차 최종 승인 및 히스토리 저장", type="primary", key="btn_save_manual_form", use_container_width=True):
+                    approved = save_outline_history(
+                        topic=cur_topic,
+                        theme=cur_theme,
+                        sections=sections,
+                        source="manual_form",
+                        memo="수동 폼 직접 편집",
+                        core_questions=editor_active_core_questions
+                    )
+                    st.success(f"'{cur_theme}' 맞춤형 목차 승인 및 히스토리 영구 저장 완료! (ID: {approved['id']})")
                     st.session_state["editing_outline"] = approved
                     st.session_state["outline_editor_open"] = False
                     st.rerun()
@@ -471,20 +562,97 @@ Outline B: 기술 사양 및 엔지니어링/수율 관점
                 help="## 번호. 섹션명 및 하위 불릿(- 질문) 형식으로 자유롭게 편집하세요."
             )
             
-            if st.button("💾 마크다운 목차 파싱 및 최종 승인", type="primary", key="btn_save_manual_md", use_container_width=True):
+            if st.button("💾 마크다운 목차 파싱 및 히스토리 저장", type="primary", key="btn_save_manual_md", use_container_width=True):
                 parsed_theme, parsed_sections = markdown_outline_to_sections(md_input)
-                approved = {
-                    "topic": cur_topic,
-                    "theme": parsed_theme if parsed_theme else cur_theme,
-                    "sections": parsed_sections
-                }
-                os.makedirs("temp", exist_ok=True)
-                with open("temp/latest_approved_outline.json", "w", encoding="utf-8") as f:
-                    json.dump(approved, f, ensure_ascii=False, indent=2)
-                st.success(f"'{approved['theme']}' 맞춤형 목차 ({len(parsed_sections)}개 섹션) 승인 완료! (temp/latest_approved_outline.json 저장)")
+                approved = save_outline_history(
+                    topic=cur_topic,
+                    theme=parsed_theme if parsed_theme else cur_theme,
+                    sections=parsed_sections,
+                    source="manual_markdown",
+                    memo="마크다운 직접 입력",
+                    core_questions=editor_active_core_questions
+                )
+                st.success(f"'{approved['theme']}' 맞춤형 목차 ({len(parsed_sections)}개 섹션) 승인 및 히스토리 저장 완료! (ID: {approved['id']})")
                 st.session_state["editing_outline"] = approved
                 st.session_state["outline_editor_open"] = False
                 st.rerun()
+
+    # ========================================================
+    # 📚 토픽 & 목차 히스토리 보관소 (Topic & Outline Archive)
+    # ========================================================
+    st.markdown("---")
+    with st.expander("📚 토픽 & 목차 히스토리 보관소 (Topic & Outline Archive)", expanded=False):
+        st.markdown("과거에 승인하거나 직접 작성하여 보관된 모든 토픽 및 목차 히스토리를 조회하고, 원클릭으로 다시 불러와 재사용할 수 있습니다.")
+        
+        sync_existing_latest_to_history()
+        history_records = list_outline_history()
+        
+        if not history_records:
+            st.info("아직 저장된 목차 히스토리가 없습니다. 위에서 목차를 승인하거나 수동 편집기를 통해 저장해보세요.")
+        else:
+            col_search, col_cnt = st.columns([3, 1])
+            with col_search:
+                hist_search = st.text_input("🔍 토픽 또는 테마 검색", placeholder="검색할 키워드 입력...", key="hist_search_kw")
+            with col_cnt:
+                st.metric("저장된 목차 수", f"{len(history_records)}개")
+                
+            filtered_history = [
+                h for h in history_records 
+                if not hist_search or (hist_search.lower() in h.get("topic", "").lower() or hist_search.lower() in h.get("theme", "").lower())
+            ]
+            
+            if not filtered_history:
+                st.warning("검색 결과와 일치하는 목차 히스토리가 없습니다.")
+            else:
+                for h_idx, h_item in enumerate(filtered_history):
+                    h_id = h_item["id"]
+                    h_topic = h_item.get("topic", "제목 없음")
+                    h_theme = h_item.get("theme", "맞춤형 테마")
+                    h_time = str(h_item.get("saved_at", ""))[:19].replace("T", " ")
+                    h_cnt = h_item.get("section_count", len(h_item.get("sections", [])))
+                    h_memo = h_item.get("memo", "")
+                    
+                    with st.container(border=True):
+                        col_info, col_act1, col_act2, col_act3 = st.columns([4, 1.3, 1.3, 0.8])
+                        with col_info:
+                            memo_badge = f" `[{h_memo}]`" if h_memo else ""
+                            st.markdown(f"**📌 {h_topic}** {memo_badge}")
+                            st.caption(f"🕒 저장: {h_time} &nbsp;|&nbsp; 🏷️ 테마: **{h_theme}** &nbsp;|&nbsp; 📑 핵심 섹션: **{h_cnt}개**")
+                            
+                            with st.expander(f"섹션 구성 ({h_cnt}개) 미리보기", expanded=False):
+                                if h_item.get("core_questions"):
+                                    st.markdown("🎯 **연동된 핵심 질문:**")
+                                    for cq in h_item["core_questions"]:
+                                        st.markdown(f"  - {cq}")
+                                    st.markdown("---")
+                                for s_i, s in enumerate(h_item.get("sections", []), 1):
+                                    st.markdown(f"**{s_i}. {s.get('title')}**")
+                                    for q in s.get("target_questions", []):
+                                        st.markdown(f"  - {q}")
+                                        
+                        with col_act1:
+                            if st.button("🔄 활성화 & 리서치 연동", key=f"btn_act_hist_{h_idx}_{h_id}", use_container_width=True):
+                                set_active_approved_outline(h_item)
+                                st.session_state["editing_outline"] = h_item
+                                st.session_state["active_core_questions"] = h_item.get("core_questions", [])
+                                st.session_state["core_questions_text"] = "\n".join(h_item.get("core_questions", []))
+                                st.success(f"'{h_topic}' 목차가 활성화되었습니다! 2번 리서치 탭에서 바로 실행할 수 있습니다.")
+                                st.rerun()
+                                
+                        with col_act2:
+                            if st.button("✏️ 편집기로 불러오기", key=f"btn_edit_hist_{h_idx}_{h_id}", use_container_width=True):
+                                st.session_state["editing_outline"] = h_item
+                                st.session_state["active_core_questions"] = h_item.get("core_questions", [])
+                                st.session_state["core_questions_text"] = "\n".join(h_item.get("core_questions", []))
+                                st.session_state["outline_editor_open"] = True
+                                st.success(f"'{h_topic}' 목차를 수동 편집기로 불러왔습니다.")
+                                st.rerun()
+                                
+                        with col_act3:
+                            if st.button("🗑️ 삭제", key=f"btn_del_hist_{h_idx}_{h_id}", use_container_width=True):
+                                delete_outline_history(h_id)
+                                st.success("목차 히스토리가 삭제되었습니다.")
+                                st.rerun()
 
 # ========================================================
 # TAB 2: DLS 심층 리서치 파이프라인
@@ -494,7 +662,34 @@ with tab2:
     
     approved_topic = final_topic
     has_outline = False
-    if os.path.exists("temp/latest_approved_outline.json"):
+    
+    sync_existing_latest_to_history()
+    history_records = list_outline_history()
+    
+    if history_records:
+        st.markdown("#### 📑 리서치 실행 목차 선택")
+        hist_mode = st.radio(
+            "목차 소스 선택",
+            options=["⚡ 최근 활성화된 목차 사용", "📚 저장된 목차 히스토리 보관소에서 선택"],
+            horizontal=True,
+            key="tab2_hist_mode_radio"
+        )
+        if hist_mode == "📚 저장된 목차 히스토리 보관소에서 선택":
+            hist_map = {
+                f"[{h.get('saved_at', '')[:16].replace('T', ' ')}] {h.get('topic', '')} ({h.get('theme', '')})": h['id']
+                for h in history_records
+            }
+            selected_hist_label = st.selectbox("적용할 히스토리 목차 선택", options=list(hist_map.keys()), key="tab2_hist_picker")
+            selected_h_id = hist_map[selected_hist_label]
+            selected_record = load_outline_history(selected_h_id)
+            if selected_record:
+                set_active_approved_outline(selected_record)
+                saved_outline = selected_record
+                approved_topic = selected_record.get("topic", approved_topic)
+                has_outline = True
+                st.info(f"📑 히스토리 목차 연동됨: **'{selected_record.get('theme')}'** (주제: {approved_topic})")
+
+    if not has_outline and os.path.exists("temp/latest_approved_outline.json"):
         try:
             with open("temp/latest_approved_outline.json", "r", encoding="utf-8") as f:
                 saved_outline = json.load(f)
@@ -511,6 +706,11 @@ with tab2:
     if has_outline and use_approved_outline:
         with st.expander(f"📑 승인된 목차 구성 ({len(saved_outline.get('sections', []))}개 핵심 섹션) 미리보기 및 수정", expanded=True):
             st.markdown(f"**분석 관점/테마**: {saved_outline.get('theme', '')}")
+            if saved_outline.get("core_questions"):
+                with st.container(border=True):
+                    st.markdown("🎯 **해결 목표 핵심 질문 (Core Questions)**")
+                    for cq_i, cq_txt in enumerate(saved_outline["core_questions"], 1):
+                        st.markdown(f"**{cq_i}.** {cq_txt}")
             tab2_edit_toggle = st.toggle("✏️ 리서치 실행 전 목차 세부 수정", value=False, key="tab2_toggle_edit")
             if not tab2_edit_toggle:
                 for idx, s in enumerate(saved_outline.get("sections", []), 1):
@@ -527,10 +727,16 @@ with tab2:
                     new_q_str = st.text_area(f"세부 질문 #{idx+1} (줄바꿈 구분)", value=q_str, key=f"t2_sec_q_{idx}", height=70)
                     s["target_questions"] = [q.strip() for q in new_q_str.splitlines() if q.strip()]
                     
-                if st.button("💾 수정한 목차 저장", key="btn_save_tab2_outline", type="primary"):
-                    with open("temp/latest_approved_outline.json", "w", encoding="utf-8") as f:
-                        json.dump(saved_outline, f, ensure_ascii=False, indent=2)
-                    st.success("수정된 목차가 저장되었습니다! 이제 아래에서 바로 리서치를 시작하세요.")
+                if st.button("💾 수정한 목차 저장 및 히스토리 보관", key="btn_save_tab2_outline", type="primary"):
+                    saved_rec = save_outline_history(
+                        topic=saved_outline.get("topic", research_topic),
+                        theme=saved_outline.get("theme", "실행 직전 수정 목차"),
+                        sections=tab2_sections,
+                        source="tab2_pre_execution_edit",
+                        memo="2번 탭 실행 직전 세부 수정",
+                        core_questions=saved_outline.get("core_questions", [])
+                    )
+                    st.success(f"수정된 목차가 활성화되고 히스토리에 저장되었습니다! (ID: {saved_rec['id']})")
                     st.rerun()
 
     pipeline_mode = st.radio(
@@ -559,6 +765,7 @@ with tab2:
                 sections = saved_outline.get("sections", []) if (use_approved_outline and has_outline) else []
                 g_initial_state = {
                     "topic": research_topic,
+                    "core_questions": saved_outline.get("core_questions", []) if (use_approved_outline and has_outline) else [],
                     "outline": sections,
                     "config": cfg,
                     "run_id": run_id

@@ -162,12 +162,17 @@ def run_dls(
         sections_instruction = "\n".join(sec_directives)
         unverified_sec_num = len(outline_data["sections"]) + 1
 
-        structure_instruction = f"""3. [사전 승인된 아웃라인(테마: {theme}) 기반 섹션 구성 - 반드시 아래 대제목(##) 순서와 제목 그대로 작성할 것]
+        core_q_prompt = ""
+        if outline_data.get("core_questions"):
+            cq_bullets = "\n".join([f"       * {cq}" for cq in outline_data["core_questions"]])
+            core_q_prompt = f"\n   - [집중 규명 핵심 질문 (Core Questions)]:\n{cq_bullets}\n"
+
+        structure_instruction = f"""3. [사전 승인된 아웃라인(테마: {theme}) 기반 섹션 구성 - 반드시 아래 대제목(##) 순서와 제목 그대로 작성할 것]{core_q_prompt}
 {sections_instruction}
    - ## {unverified_sec_num}. 미확인 주장 및 향후 검증 과제 (Unverified & Open Questions)
-     - 기사 간 상충/과장 내용 및 향후 공식 확인 필요 사항을 마크다운 비교 표로 정리
+   - 기사 간 상충/과장 내용 및 향후 공식 확인 필요 사항을 마크다운 비교 표로 정리
    - > [!NOTE] 휴먼 피드백 & 직접 집필란
-     - 전문가 검토를 위한 빈 Callout 영역"""
+   - 전문가 검토를 위한 빈 Callout 영역"""
     else:
         structure_instruction = """3. 반드시 다음 표준 4개 섹션으로 구성하세요:
    - ## 1. 확인된 사실 (Facts)

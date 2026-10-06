@@ -17,6 +17,7 @@ class TopicOutlineState(TypedDict, total=False):
     
     # -- Outline Generation --
     topic_analysis: Dict[str, Any]           # 주제 의도/타겟/핵심논점 분석
+    core_questions: Optional[List[str]]      # 사용자 또는 AI 추천 핵심 질문 (Core Questions)
     outline_proposals: List[Dict[str, Any]]  # 다각도 아웃라인 안 (A/B/C)
     
     # -- Human Review (HITL) --
@@ -40,6 +41,7 @@ class SectionSpec(TypedDict, total=False):
 class DLSState(TypedDict, total=False):
     # -- Inputs (from approved_outline or direct) --
     topic: str                               # 연구 주제
+    core_questions: Optional[List[str]]      # 집중 해결 핵심 질문 목록
     outline: List[Dict[str, Any]]            # 섹션 정의 목록
     config: Dict[str, Any]                   # 런타임 설정 (settings.yaml)
     
