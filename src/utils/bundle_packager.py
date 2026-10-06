@@ -20,7 +20,8 @@ from typing import Dict, Any, List, Optional
 from src.prompts.bundle_prompts import (
     EXECUTIVE_BRIEF_PROMPT,
     COMPETITIVE_BENCHMARK_PROMPT,
-    RISK_DUE_DILIGENCE_PROMPT
+    RISK_DUE_DILIGENCE_PROMPT,
+    HANKYUNG_ARTICLE_PROMPT
 )
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -76,6 +77,14 @@ def generate_risk_checklist(topic: str, context_data: str, llm) -> str:
     return clean_think_tags(content)
 
 
+def generate_hankyung_article(topic: str, context_data: str, llm) -> str:
+    """한국경제(Hankyung) 글로벌마켓 심층 기획 기사 생성"""
+    prompt = HANKYUNG_ARTICLE_PROMPT.format(topic=topic, context_data=context_data)
+    res = llm.invoke(prompt)
+    content = res.content if hasattr(res, "content") else str(res)
+    return clean_think_tags(content)
+
+
 def create_report_bundle(
     topic: str,
     technical_report: str,
@@ -85,7 +94,8 @@ def create_report_bundle(
     run_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    4대 전문 보고서를 생성하고, manifest.json 및 zip 파일로 일괄 패키징합니다.
+    전문 보고서 번들을 생성하고, manifest.json 및 zip 파일로 일괄 패키징합니다.
+    (경영진 브리프, 기술보고서, 벤치마크, 리스크/DD, 한경 심층기획기사)
     """
     base_dir = output_base_dir or (ROOT_DIR / "output" / "bundles")
     base_dir.mkdir(parents=True, exist_ok=True)
@@ -99,8 +109,7 @@ def create_report_bundle(
     # 1. 원천 데이터 컨텍스트 빌드
     context_data = build_bundle_context(technical_report, all_sources)
     
-    # 2. 4대 보고서 생성
-    # 보고서 2: 심층 기술·산업 상세 보고서 (원문 리포트)
+    # 2. 전문 보고서 생성
     tech_content = technical_report
     
     # LLM이 전달되지 않은 경우 기본 요약 생성기 대체 또는 안내
@@ -108,17 +117,20 @@ def create_report_bundle(
         exec_content = generate_executive_brief(topic, context_data, llm)
         benchmark_content = generate_competitive_benchmark(topic, context_data, llm)
         risk_content = generate_risk_checklist(topic, context_data, llm)
+        hankyung_content = generate_hankyung_article(topic, context_data, llm)
     else:
         exec_content = f"# 👔 [Executive Brief] {topic}\n\nLLM 인스턴스가 주입되지 않아 기본 템플릿으로 출력되었습니다.\n\n{context_data[:1500]}"
         benchmark_content = f"# 📊 [Competitive Benchmark] {topic}\n\nLLM 인스턴스가 주입되지 않아 기본 템플릿으로 출력되었습니다.\n\n{context_data[:1500]}"
         risk_content = f"# ⚠️ [Risk Due-Diligence] {topic}\n\nLLM 인스턴스가 주입되지 않아 기본 템플릿으로 출력되었습니다.\n\n{context_data[:1500]}"
+        hankyung_content = f"# 📰 [한경 심층 기획] {topic}\n\nLLM 인스턴스가 주입되지 않아 기본 템플릿으로 출력되었습니다.\n\n{context_data[:1500]}"
 
-    # 파일 저장 목록
+    # 파일 저장 목록 (5대 보고서 패키지)
     report_specs = [
         ("01_executive_brief.md", "경영진 전략 1-Pager 브리프", exec_content, "👔"),
         ("02_technical_deepdive.md", "심층 기술·산업 상세 보고서", tech_content, "🔬"),
         ("03_competitive_benchmark.md", "경쟁사 벤치마크 매트릭스", benchmark_content, "📊"),
-        ("04_risk_due_diligence.md", "리스크 진단 & Due-Diligence", risk_content, "⚠️")
+        ("04_risk_due_diligence.md", "리스크 진단 & Due-Diligence", risk_content, "⚠️"),
+        ("05_hankyung_article.md", "한경 심층 기획 기사", hankyung_content, "📰")
     ]
     
     saved_reports = {}

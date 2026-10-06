@@ -48,7 +48,8 @@ def test_create_report_bundle(tmp_path):
     mock_llm.invoke.side_effect = [
         MagicMock(content="<think>임원 요약</think># 👔 [Executive Strategy Brief] 차세대 HBM4\n## 1. 3대 결론\n- 결론 1"),
         MagicMock(content="# 📊 [Competitive Benchmark Matrix] 차세대 HBM4\n## 1. 비교표"),
-        MagicMock(content="# ⚠️ [Risk Due-Diligence Checklist] 차세대 HBM4\n## 1. 신뢰도 평가")
+        MagicMock(content="# ⚠️ [Risk Due-Diligence Checklist] 차세대 HBM4\n## 1. 신뢰도 평가"),
+        MagicMock(content="# 📰 [한경 심층 기획] 차세대 HBM4 쟁탈전\n> **부제 1**\n\n리드문...")
     ]
     
     bundle_res = create_report_bundle(
@@ -62,11 +63,12 @@ def test_create_report_bundle(tmp_path):
     bundle_dir = Path(bundle_res["bundle_dir"])
     assert bundle_dir.exists()
     
-    # 4 files check
+    # 5 files check
     f_exec = bundle_dir / "01_executive_brief.md"
     f_tech = bundle_dir / "02_technical_deepdive.md"
     f_bench = bundle_dir / "03_competitive_benchmark.md"
     f_risk = bundle_dir / "04_risk_due_diligence.md"
+    f_hanky = bundle_dir / "05_hankyung_article.md"
     f_manifest = bundle_dir / "00_bundle_manifest.json"
     f_zip = bundle_dir / "full_bundle.zip"
     
@@ -74,6 +76,7 @@ def test_create_report_bundle(tmp_path):
     assert f_tech.exists()
     assert f_bench.exists()
     assert f_risk.exists()
+    assert f_hanky.exists()
     assert f_manifest.exists()
     assert f_zip.exists()
     
@@ -81,8 +84,8 @@ def test_create_report_bundle(tmp_path):
     with open(f_manifest, "r", encoding="utf-8") as f:
         manifest_data = json.load(f)
     assert manifest_data["topic"] == topic
-    assert manifest_data["reports_count"] == 4
-    assert len(manifest_data["reports"]) == 4
+    assert manifest_data["reports_count"] == 5
+    assert len(manifest_data["reports"]) == 5
     
     # Verify ZIP file contents
     with zipfile.ZipFile(f_zip, "r") as z:
@@ -92,6 +95,7 @@ def test_create_report_bundle(tmp_path):
         assert "02_technical_deepdive.md" in names
         assert "03_competitive_benchmark.md" in names
         assert "04_risk_due_diligence.md" in names
+        assert "05_hankyung_article.md" in names
         
     # Verify get_available_bundles
     bundles = get_available_bundles(tmp_path)

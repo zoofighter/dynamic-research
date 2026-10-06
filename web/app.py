@@ -700,7 +700,7 @@ with tab3:
                 if zip_path and os.path.exists(zip_path):
                     with open(zip_path, "rb") as zf:
                         st.download_button(
-                            label="📦 4종 전체 ZIP 다운로드",
+                            label="📦 번들 전체 ZIP 다운로드",
                             data=zf.read(),
                             file_name=f"{chosen_bundle.get('bundle_id')}.zip",
                             mime="application/zip",
@@ -710,19 +710,21 @@ with tab3:
             
             st.markdown("---")
             
-            # 4 Sub-Tabs for 4 Core Reports
-            sub1, sub2, sub3, sub4 = st.tabs([
+            # 5 Sub-Tabs for Specialized Reports
+            sub1, sub2, sub3, sub4, sub5 = st.tabs([
                 "👔 1. 경영진 전략 1-Pager",
                 "🔬 2. 심층 기술·산업 보고서",
                 "📊 3. 경쟁사 벤치마크 매트릭스",
-                "⚠️ 4. 리스크 & Due-Diligence"
+                "⚠️ 4. 리스크 & Due-Diligence",
+                "📰 5. 한경 심층 기획 기사"
             ])
             
             sub_files = [
                 (sub1, "01_executive_brief.md", "👔 경영진 전략 브리프"),
                 (sub2, "02_technical_deepdive.md", "🔬 심층 기술 분석서"),
                 (sub3, "03_competitive_benchmark.md", "📊 경쟁사 벤치마크"),
-                (sub4, "04_risk_due_diligence.md", "⚠️ 리스크 및 검증 과제")
+                (sub4, "04_risk_due_diligence.md", "⚠️ 리스크 및 검증 과제"),
+                (sub5, "05_hankyung_article.md", "📰 한경 심층 기획 기사")
             ]
             
             for tab_target, fname, tab_title in sub_files:

@@ -25,3 +25,7 @@ AI 개입 방식: 최근 24~72시간 뉴스 헤드라인 50개를 수집 → LLM
 - 보고서 유형 다각화 분류 체계 및 확장 프레임워크 -> [report_taxonomies_and_expansion_20261005.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/report_taxonomies_and_expansion_20261005.md) 에 4차원 분류 체계(의사결정 목적별, 시간지평별, 전달매체별, 전문관점별) 및 확장 로드맵 문서화 완료
 
 - 월스트리트 투자은행(IB) 스타일 에쿼티 리서치 보고서 요건정의 -> [wall_street_equity_research_requirements_20261005.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/wall_street_equity_research_requirements_20261005.md) 에 골드만삭스/모건스탠리 스타일 투자의견(Rating), 목표주가, 컨센서스 괴리(Variant Perception), 3개년 재무추정치, Bull/Base/Bear 밸류에이션 매트릭스 요건정의서 작성 완료
+
+- 한국경제(Hankyung) 글로벌마켓 심층 기획 기사 자동 생성 요건정의 및 구현 -> [hankyung_article_generation_requirements_20261006.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/hankyung_article_generation_requirements_20261006.md) 에 `/Users/boon/a_0504_hanky/articles` 스타일의 헤드라인·부제, 현장감 리드문, 넘버링 서사(1. -> ①, ②), 전문가 코멘트 인용 및 저널리즘 기사 작성 요건정의 완료
+
+- last30days-skill 기반 소셜 및 예측시장 인텔리전스 통합 요건정의 -> [last30days_integration_requirements_20261006.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/last30days_integration_requirements_20261006.md) 에 Reddit/HN/Polymarket/GitHub/arXiv 30일 엄격 시계열 수집, 군중 참여도(Upvote/$ Volume) 가중 랭킹, 미디어 보도 전 폭발 직전 주제 감지(Pre-Media Breakout Discovery), 6호 신규 보고서(`06_last30days_social_brief.md`) 요건정의 완료
