@@ -1,5 +1,47 @@
 import os
 import sys
+
+# Safeguard against [Errno 5] Input/output error on closed terminal PTYs (macOS / Unix)
+for _fd, _mode in [(0, os.O_RDONLY), (1, os.O_WRONLY), (2, os.O_WRONLY)]:
+    try:
+        if _fd == 0:
+            os.read(0, 0)
+        else:
+            os.write(_fd, b"")
+    except OSError:
+        try:
+            _null_fd = os.open(os.devnull, _mode)
+            os.dup2(_null_fd, _fd)
+            os.close(_null_fd)
+        except Exception:
+            pass
+
+class _SafeWriter:
+    def __init__(self, target):
+        self._target = target
+    def write(self, s):
+        try:
+            return self._target.write(s)
+        except (OSError, IOError):
+            pass
+    def flush(self):
+        try:
+            return self._target.flush()
+        except (OSError, IOError):
+            pass
+    def isatty(self):
+        try:
+            return self._target.isatty()
+        except Exception:
+            return False
+    def __getattr__(self, item):
+        return getattr(self._target, item)
+
+if hasattr(sys, "stdout") and sys.stdout is not None:
+    sys.stdout = _SafeWriter(sys.stdout)
+if hasattr(sys, "stderr") and sys.stderr is not None:
+    sys.stderr = _SafeWriter(sys.stderr)
+
 import json
 import time
 import glob
@@ -619,16 +661,20 @@ Outline B: 기술 사양 및 엔지니어링/수율 관점
                             st.markdown(f"**📌 {h_topic}** {memo_badge}")
                             st.caption(f"🕒 저장: {h_time} &nbsp;|&nbsp; 🏷️ 테마: **{h_theme}** &nbsp;|&nbsp; 📑 핵심 섹션: **{h_cnt}개**")
                             
-                            with st.expander(f"섹션 구성 ({h_cnt}개) 미리보기", expanded=False):
-                                if h_item.get("core_questions"):
-                                    st.markdown("🎯 **연동된 핵심 질문:**")
-                                    for cq in h_item["core_questions"]:
-                                        st.markdown(f"  - {cq}")
-                                    st.markdown("---")
-                                for s_i, s in enumerate(h_item.get("sections", []), 1):
-                                    st.markdown(f"**{s_i}. {s.get('title')}**")
-                                    for q in s.get("target_questions", []):
-                                        st.markdown(f"  - {q}")
+                            # 중첩 st.expander 방지 (StreamlitAPIException 예방) -> HTML details/summary 활용
+                            preview_html = [f"<details><summary style='cursor: pointer; color: #1E88E5; font-weight: 500;'>🔍 섹션 구성 ({h_cnt}개) 미리보기 (클릭)</summary><div style='padding-top: 8px;'>"]
+                            if h_item.get("core_questions"):
+                                preview_html.append("<p style='margin: 4px 0;'>🎯 <b>연동된 핵심 질문:</b></p><ul>")
+                                for cq in h_item["core_questions"]:
+                                    preview_html.append(f"<li>{cq}</li>")
+                                preview_html.append("</ul><hr style='margin: 6px 0;'>")
+                            for s_i, s in enumerate(h_item.get("sections", []), 1):
+                                preview_html.append(f"<p style='margin: 4px 0;'><b>{s_i}. {s.get('title')}</b></p><ul>")
+                                for q in s.get("target_questions", []):
+                                    preview_html.append(f"<li>{q}</li>")
+                                preview_html.append("</ul>")
+                            preview_html.append("</div></details>")
+                            st.markdown("\n".join(preview_html), unsafe_allow_html=True)
                                         
                         with col_act1:
                             if st.button("🔄 활성화 & 리서치 연동", key=f"btn_act_hist_{h_idx}_{h_id}", use_container_width=True):
@@ -822,8 +868,12 @@ with tab2:
                 st.markdown("---")
                 st.markdown(res_text)
         except Exception as e:
+            import traceback
+            err_details = traceback.format_exc()
             status_box.update(label="❌ 실행 오류 발생", state="error")
             st.error(f"오류: {e}")
+            with st.expander("🔍 상세 오류 트레이스백 (Debug Info)"):
+                st.code(err_details)
 
 # ========================================================
 # TAB 3: 완성된 리포트 열람실 (4대 번들 & 단일 리포트)

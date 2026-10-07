@@ -110,16 +110,29 @@ class OpenCodeChatModel(BaseChatModel):
         return "opencode-api"
 
     def _discover_base_url(self) -> Optional[str]:
+        def _is_server_alive(url: str) -> bool:
+            try:
+                r = requests.get(f"{url}/api/health", timeout=0.3)
+                return r.status_code == 200
+            except Exception:
+                return False
+
         if self.base_url:
-            return self.base_url.rstrip("/")
+            clean = self.base_url.rstrip("/")
+            if _is_server_alive(clean):
+                return clean
 
         env_url = os.getenv("OPENCODE_BASE_URL")
         if env_url:
-            return env_url.rstrip("/")
+            clean = env_url.rstrip("/")
+            if _is_server_alive(clean):
+                return clean
 
         env_port = os.getenv("OPENCODE_PORT")
         if env_port:
-            return f"http://127.0.0.1:{env_port}"
+            clean = f"http://127.0.0.1:{env_port}"
+            if _is_server_alive(clean):
+                return clean
 
         # Try to detect from running processes (e.g. opencode --port 36629)
         try:
@@ -129,25 +142,18 @@ class OpenCodeChatModel(BaseChatModel):
                     match = re.search(r"--port\s+(\d+)", line)
                     if match:
                         port = match.group(1)
-                        # Verify that the server is actually responding
-                        try:
-                            r = requests.get(f"http://127.0.0.1:{port}/api/health", timeout=0.3)
-                            if r.status_code == 200:
-                                return f"http://127.0.0.1:{port}"
-                        except Exception:
-                            pass
+                        clean = f"http://127.0.0.1:{port}"
+                        if _is_server_alive(clean):
+                            return clean
         except Exception:
             pass
 
         # Try common ports
         candidate_ports = [36629, 4000, 3000, 8080]
         for port in candidate_ports:
-            try:
-                r = requests.get(f"http://127.0.0.1:{port}/api/health", timeout=0.5)
-                if r.status_code == 200 and r.json().get("healthy"):
-                    return f"http://127.0.0.1:{port}"
-            except Exception:
-                continue
+            clean = f"http://127.0.0.1:{port}"
+            if _is_server_alive(clean):
+                return clean
 
         return None
 
@@ -157,7 +163,7 @@ class OpenCodeChatModel(BaseChatModel):
         stop: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> ChatResult:
-        import subprocess, requests, json, time, re
+        import subprocess, requests, json, time, re, shutil
 
         prompt_texts = []
         for msg in messages:
@@ -234,12 +240,22 @@ class OpenCodeChatModel(BaseChatModel):
                 return ChatResult(generations=[generation])
 
             except Exception as e:
-                print(f"[OpenCode API Warning: {e}] -> opencode CLI로 대체 시도합니다...")
+                try:
+                    print(f"[OpenCode API Warning: {e}] -> opencode CLI로 대체 시도합니다...")
+                except (OSError, IOError):
+                    pass
 
         # Method 2: Fallback to CLI opencode run
         try:
-            cmd = ["opencode", "run", full_prompt, "-m", self.model_name]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout_sec)
+            opencode_bin = shutil.which("opencode") or "/Users/boon/.opencode/bin/opencode"
+            cmd = [opencode_bin, "run", full_prompt, "-m", self.model_name]
+            result = subprocess.run(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout_sec
+            )
             if result.returncode == 0:
                 raw_out = result.stdout.strip()
                 clean_lines = [l for l in raw_out.splitlines() if not l.startswith("> ") and not l.startswith("timestamp=")]
@@ -289,7 +305,10 @@ class NormalizedGeminiChat(ChatGoogleGenerativeAI):
             except Exception as e:
                 err_str = str(e)
                 if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
-                    print(f"\n⚠️ [Gemini Quota Auto-Fallback] {m} 할당량 초과 -> 다음 가용 모델로 자동 전환합니다.")
+                    try:
+                        print(f"\n⚠️ [Gemini Quota Auto-Fallback] {m} 할당량 초과 -> 다음 가용 모델로 자동 전환합니다.")
+                    except (OSError, IOError):
+                        pass
                     last_error = e
                     continue
                 else:

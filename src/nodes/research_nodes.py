@@ -320,7 +320,10 @@ def assemble_report(state: DLSState) -> Dict[str, Any]:
         bundle_manifest_dict = bundle_res.get("manifest", {})
         bundle_zip_str = bundle_res.get("zip_path", "")
     except Exception as e:
-        print(f"⚠️ Report bundle generation warning: {e}")
+        try:
+            print(f"⚠️ Report bundle generation warning: {e}")
+        except (OSError, IOError):
+            pass
         
     return {
         "final_report": final_report,

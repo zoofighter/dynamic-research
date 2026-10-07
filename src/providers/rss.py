@@ -55,6 +55,9 @@ class NewsRSSProvider:
                     source=source_name
                 ))
         except Exception as e:
-            print(f"[NewsRSSProvider Error] Failed to fetch Google News RSS: {e}")
+            try:
+                print(f"[NewsRSSProvider Error] Failed to fetch Google News RSS: {e}")
+            except (OSError, IOError):
+                pass
 
         return articles

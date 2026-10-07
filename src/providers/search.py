@@ -131,7 +131,10 @@ class DuckDuckGoProvider(SearchProvider):
                                 engine="duckduckgo_web"
                             ))
             except Exception as e:
-                print(f"[DuckDuckGoProvider Error] {e}")
+                try:
+                    print(f"[DuckDuckGoProvider Error] {e}")
+                except (OSError, IOError):
+                    pass
 
         return results[:max_results]
 
@@ -162,7 +165,10 @@ class SerperProvider(SearchProvider):
                         engine="serper"
                     ))
         except Exception as e:
-            print(f"[SerperProvider Error] {e}")
+            try:
+                print(f"[SerperProvider Error] {e}")
+            except (OSError, IOError):
+                pass
         return results
 
 def get_search_provider(name: Optional[str] = None) -> SearchProvider:
@@ -174,6 +180,9 @@ def get_search_provider(name: Optional[str] = None) -> SearchProvider:
         serper_key = os.getenv("SERPER_API_KEY")
         if serper_key:
             return SerperProvider(api_key=serper_key)
-        print("[get_search_provider] SERPER_API_KEY not found. Falling back to DuckDuckGo.")
+        try:
+            print("[get_search_provider] SERPER_API_KEY not found. Falling back to DuckDuckGo.")
+        except (OSError, IOError):
+            pass
 
     return DuckDuckGoProvider(region=cfg.get("region", "kr-kr"))

@@ -49,11 +49,11 @@ flowchart TD
 
 ### 1) 환경 활성화 및 의존성 설치
 ```bash
+# 다른 컴퓨터(Dropbox) 동기화 후 최초 1회 자동 셋업:
+./setup_env.sh
+
 # 가상환경 활성화 (프로젝트 루트)
 source .venv/bin/activate
-
-# 패키지 설치
-pip install -r requirements.txt
 ```
 
 ### 2) LLM 엔진 환경 (OpenCode 기본 탑재)
@@ -193,11 +193,35 @@ c_1003_dynamic_research/
 
 CLI 환경 외에도 직관적인 웹 대시보드를 통해 리서치 전 과정을 시각적으로 제어할 수 있습니다.
 
+### 1) 사전 준비 및 가상환경 활성화
 ```bash
-streamlit run web/app.py
+# 가상환경 활성화 (프로젝트 루트)
+source .venv/bin/activate
+
+# (최초 1회 또는 패키지 누락 시) 필요 패키지 설치
+pip install streamlit
+# 또는 전체 환경 동기화: ./setup_env.sh
 ```
 
-### 4대 탭 기능 구성:
+> **참고**: 기본 LLM인 OpenCode Muse Spark를 사용할 경우 OpenCode 서버가 켜져 있거나 CLI 모드로 작동하며, Gemini나 Groq 사용 시 `.env`에 API 키가 설정되어 있어야 합니다.
+
+### 2) 웹 서버 실행 명령어
+```bash
+# 기본 실행 (기본 포트: 8501)
+streamlit run web/app.py
+```
+* **접속 주소**: [http://localhost:8501](http://localhost:8501)
+
+### 3) 유용한 실행 옵션
+```bash
+# 포트 번호 직접 지정 (예: 8080 포트)
+streamlit run web/app.py --server.port 8080
+
+# 백그라운드 상시 가동 (터미널 종료 후에도 유지)
+nohup streamlit run web/app.py --server.port 8501 > streamlit.log 2>&1 &
+```
+
+### 4) 4대 탭 기능 구성:
 1. **💡 토픽 발굴 & 목차 생성기**: 구글 뉴스 RSS 실시간 스캔, **다각도 4대 관점(Outline A/B/C/D - 비즈니스/기술/생태계/규제·전망)** 또는 **2대 관점(A/B)** 선택 생성, 2x2 그리드 카드 뷰 및 원클릭 최종 승인/확정
 2. **🚀 DLS 심층 리서치 파이프라인**: 승인된 목차 파일(`latest_approved_outline.json`) 연동, **LangGraph DLS 자율 심층 에이전트(목차별 독립 탐색 & 반추 루프)** vs **DLS 고속 리서치** 모드 선택 및 완결 보고서 화면 즉시 렌더링/다운로드 지원
 3. **📊 A/B 엔진 벤치마크**: Baseline(프롬프트 스터핑)과 LlamaIndex(문장 청킹 & 재순위화) 실시간 비교 평가

@@ -29,3 +29,5 @@ AI 개입 방식: 최근 24~72시간 뉴스 헤드라인 50개를 수집 → LLM
 - 한국경제(Hankyung) 글로벌마켓 심층 기획 기사 자동 생성 요건정의 및 구현 -> [hankyung_article_generation_requirements_20261006.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/hankyung_article_generation_requirements_20261006.md) 에 `/Users/boon/a_0504_hanky/articles` 스타일의 헤드라인·부제, 현장감 리드문, 넘버링 서사(1. -> ①, ②), 전문가 코멘트 인용 및 저널리즘 기사 작성 요건정의 완료
 
 - last30days-skill 기반 소셜 및 예측시장 인텔리전스 통합 요건정의 -> [last30days_integration_requirements_20261006.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/last30days_integration_requirements_20261006.md) 에 Reddit/HN/Polymarket/GitHub/arXiv 30일 엄격 시계열 수집, 군중 참여도(Upvote/$ Volume) 가중 랭킹, 미디어 보도 전 폭발 직전 주제 감지(Pre-Media Breakout Discovery), 6호 신규 보고서(`06_last30days_social_brief.md`) 요건정의 완료
+
+- DLS 심층 리서치 구동 시 `[Errno 5] Input/output error` 장애 분석 및 해결 -> [troubleshooting_errno5_io_error_20261006.md](file:///Users/boon/Dropbox/03_code/c_1003_dynamic_research/docs/troubleshooting_errno5_io_error_20261006.md) 에 상위 터미널 세션 종료에 따른 고아 PTY FD(0, 1, 2) 단절 문제, OpenCode 0.3s 빠른 헬스체크 구현, `stdin=subprocess.DEVNULL` 격리, `os.dup2` `/dev/null` 리다이렉션 및 `_SafeWriter` 스트림 방어 조치 보고서 작성 완료
